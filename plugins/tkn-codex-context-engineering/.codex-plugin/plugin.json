@@ -18,7 +18,7 @@
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "TKN Codex Context Engineering",
+    "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Maintain and resume working context, session notes, decisions, and global Codex context",
     "longDescription": "A Codex plugin that groups context engineering skills and scripts for repository working context, session notes, session resume, decision records, decision review, local Codex session-log extraction, and explicit import or promotion of user-global context through ~/.codex-context.",
     "developerName": "Tuckn",
