@@ -65,6 +65,21 @@ python3 <plugin-root>/scripts/context_bridge/context_bridge.py init --target ~/.
 python3 <plugin-root>/scripts/context_bridge/context_bridge.py init --target ~/.codex-context --write
 ```
 
+The initialized store includes `projects/index.jsonl`, `patterns/`, `skill-candidates/`,
+`agents-candidates/`, and `reviews/` in addition to decisions and candidates.
+
+Register this repository in the private project registry:
+
+```bash
+python3 <plugin-root>/scripts/context_bridge/register_project_context.py \
+  --target ~/.codex-context \
+  --repo-root . \
+  --dry-run
+```
+
+Use `--write` to create or update `.codex-context/project.yml` and
+`~/.codex-context/projects/index.jsonl`.
+
 Import global context into this repository:
 
 ```bash

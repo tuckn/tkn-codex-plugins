@@ -49,13 +49,14 @@ Included Skills:
 - `maintain-working-context`
 - `organize-brain-dump`
 - `promote-global-context`
+- `register-project-context`
 - `record-decision`
 - `resume-session`
 - `review-decisions`
 
-The plugin preserves and resumes Codex working context through repository working context,
-session notes, decision records, local Codex session-log extraction, and explicit import or
-promotion of user-global context through `~/.codex-context`.
+The plugin preserves and resumes Codex working context through repository project registration,
+working context, session notes, decision records, local Codex session-log extraction, and explicit
+import or promotion of user-global context through `~/.codex-context`.
 
 ## Adding Plugins
 

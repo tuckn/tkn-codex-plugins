@@ -19,6 +19,7 @@ DEFAULT_SKILLS = [
     "maintain-working-context",
     "organize-brain-dump",
     "promote-global-context",
+    "register-project-context",
     "record-decision",
     "resume-session",
     "review-decisions",

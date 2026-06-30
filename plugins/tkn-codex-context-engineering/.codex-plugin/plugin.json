@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
   "version": "0.1.0",
-  "description": "Preserve, resume, and recover Codex working context, session notes, decisions, local session history, and user-global context across chats and repositories.",
+  "description": "Preserve, resume, register, and recover Codex working context, session notes, decisions, local session history, project registry metadata, and user-global context across chats and repositories.",
   "author": {
     "name": "Tuckn"
   },
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
-    "shortDescription": "Maintain and resume working context, session notes, decisions, and global Codex context",
-    "longDescription": "A Codex plugin that groups context engineering skills and scripts for repository working context, session notes, session resume, decision records, decision review, local Codex session-log extraction, and explicit import or promotion of user-global context through ~/.codex-context.",
+    "shortDescription": "Maintain and resume working context, project registry metadata, session notes, decisions, and global Codex context",
+    "longDescription": "A Codex plugin that groups context engineering skills and scripts for repository project registration, working context, session notes, session resume, decision records, decision review, local Codex session-log extraction, and explicit import or promotion of user-global context through ~/.codex-context.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -30,6 +30,7 @@
     "defaultPrompt": [
       "Resume an existing session note",
       "Extract and summarize a topic from local Codex session logs",
+      "Register this repository in the global Codex context registry",
       "Update the repository working context",
       "Promote this session's reusable learning globally"
     ],

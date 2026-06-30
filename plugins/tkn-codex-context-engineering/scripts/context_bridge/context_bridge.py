@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
+import subprocess
 import sys
 import uuid
 from dataclasses import dataclass, field
@@ -17,6 +19,15 @@ from typing import Iterable
 
 JST = timezone(timedelta(hours=9))
 DEFAULT_INCLUDE = "working-context,decisions,candidates"
+GLOBAL_CONTEXT_DIRS = [
+    "decisions",
+    "candidates",
+    "projects",
+    "patterns",
+    "skill-candidates",
+    "agents-candidates",
+    "reviews",
+]
 SECRET_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"(?i)\b(api[_-]?key|secret|token|password)\b\s*[:=]\s*['\"]?[A-Za-z0-9_./+=-]{16,}"),
@@ -24,6 +35,7 @@ SECRET_PATTERNS = [
     re.compile(r"(?i)\bgh[pousr]_[A-Za-z0-9_]{20,}\b"),
 ]
 FRONTMATTER_PATTERN = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n?", re.DOTALL)
+SCALAR_FIELD_PATTERN = r"(?m)^\s*{key}:\s*['\"]?([^'\"\r\n#]+)"
 
 
 @dataclass
@@ -70,6 +82,21 @@ def yaml_string_list(values: Iterable[str]) -> str:
     if not items:
         return "[]"
     return "\n".join(f"  - {yaml_string(value)}" for value in items)
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def short_hash(value: str) -> str:
+    return sha256_text(value)[:16]
+
+
+def yaml_value(text: str, key: str) -> str:
+    match = re.search(SCALAR_FIELD_PATTERN.format(key=re.escape(key)), text)
+    if not match:
+        return ""
+    return match.group(1).strip()
 
 
 def source_ref(path: Path) -> str:
@@ -173,19 +200,217 @@ def list_selected_files(folder: Path, selected: Iterable[str] | None) -> list[Pa
     return sorted(path for path in folder.glob("*.md") if path.is_file())
 
 
+def git_value(repo_root: Path, *args: str) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+    except OSError:
+        return ""
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout.strip()
+
+
+def remote_display(remote: str) -> str:
+    value = remote.strip()
+    if not value:
+        return ""
+    if re.match(r"^[A-Za-z]:[\\/]", value) or value.startswith(("/", "\\", "file:")):
+        return ""
+    match = re.match(r"git@([^:]+):(.+)$", value)
+    if match:
+        value = f"{match.group(1)}/{match.group(2)}"
+    else:
+        value = re.sub(r"^[A-Za-z]+://", "", value)
+        value = re.sub(r"^[^/@]+@", "", value)
+    value = re.sub(r"\.git$", "", value)
+    return value.strip("/")
+
+
+def project_title(repo_root: Path, explicit_title: str | None, existing: str) -> str:
+    if explicit_title:
+        return explicit_title
+    if existing:
+        return existing
+    return repo_root.name or "codex-project"
+
+
+def id_from_existing_or_remote(existing: str, prefix: str, remote: str) -> str:
+    if existing:
+        return existing
+    if remote:
+        return f"{prefix}_{short_hash(remote)}"
+    return f"{prefix}_{uuid.uuid4().hex}"
+
+
+def workspace_id(existing: str) -> str:
+    return existing or f"ws_{uuid.uuid4().hex}"
+
+
+def render_project_yml(
+    *,
+    title: str,
+    project_id: str,
+    workspace_id_value: str,
+    repo_id: str,
+    remote_hash: str,
+    remote_display_value: str,
+    branch: str,
+    status: str,
+    sensitivity: str,
+    created: str,
+    updated: str,
+) -> str:
+    return f"""---
+type: codexProjectContext
+schemaVersion: 1
+title: {yaml_string(title)}
+generator: Codex
+created: {yaml_string(created)}
+updated: {yaml_string(updated)}
+---
+
+identity:
+  projectId: {yaml_string(project_id)}
+  workspaceId: {yaml_string(workspace_id_value)}
+  repoId: {yaml_string(repo_id)}
+
+paths:
+  currentRoot: ""
+  knownRoots: []
+
+vcs:
+  type: "git"
+  primaryRemoteHash: {yaml_string(remote_hash)}
+  primaryRemoteDisplay: {yaml_string(remote_display_value)}
+  currentBranch: {yaml_string(branch)}
+
+context:
+  localContextPath: ".codex-context"
+  workingContextPath: ".codex-context/working-context.md"
+  decisionsPath: ".codex-context/decisions"
+  sessionsPath: ".codex-context/sessions"
+
+status:
+  lifecycle: {yaml_string(status)}
+  sensitivity: {yaml_string(sensitivity)}
+  lastSeenAt: {yaml_string(updated)}
+"""
+
+
+def read_jsonl(path: Path, result: Result) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+    records: list[dict[str, object]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exc:
+            result.warn(f"{path}:{line_number}: {exc}")
+            continue
+        if isinstance(value, dict):
+            records.append(value)
+        else:
+            result.warn(f"{path}:{line_number}: ignoring non-object JSONL record")
+    return records
+
+
+def write_registry_record(index_path: Path, record: dict[str, object], write: bool, result: Result) -> None:
+    records = read_jsonl(index_path, result)
+    workspace = record["workspaceId"]
+    kept = [item for item in records if item.get("workspaceId") != workspace]
+    kept.append(record)
+    text = "\n".join(json.dumps(item, ensure_ascii=False, sort_keys=True) for item in kept) + "\n"
+    result.add("write", str(index_path))
+    if write:
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        index_path.write_text(text, encoding="utf-8")
+
+
+def register_project(args: argparse.Namespace) -> Result:
+    target = expand(args.target)
+    repo_root = expand(args.repo_root)
+    project_file = repo_root / Path(args.project_file.replace("\\", "/"))
+    now = now_iso()
+    result = Result()
+
+    for rel in GLOBAL_CONTEXT_DIRS:
+        ensure_dir(target / rel, args.write, result)
+    write_text(target / "projects" / "index.jsonl", "", args.write, result)
+    write_text(target / "README.md", global_readme(), args.write, result)
+    write_text(target / "working-context.md", global_working_context(), args.write, result)
+
+    existing_text = project_file.read_text(encoding="utf-8", errors="replace") if project_file.exists() else ""
+    remote = git_value(repo_root, "config", "--get", "remote.origin.url")
+    display = remote_display(remote)
+    remote_hash = f"sha256:{sha256_text(display or remote)}" if remote else ""
+    branch = git_value(repo_root, "rev-parse", "--abbrev-ref", "HEAD")
+    title = project_title(repo_root, args.title, yaml_value(existing_text, "title"))
+    created = yaml_value(existing_text, "created") or now
+    project_id = id_from_existing_or_remote(yaml_value(existing_text, "projectId"), "prj", display or remote)
+    workspace_id_value = workspace_id(yaml_value(existing_text, "workspaceId"))
+    repo_id = id_from_existing_or_remote(yaml_value(existing_text, "repoId"), "repo", display or remote)
+    status = args.status
+    sensitivity = args.sensitivity
+
+    project_text = render_project_yml(
+        title=title,
+        project_id=project_id,
+        workspace_id_value=workspace_id_value,
+        repo_id=repo_id,
+        remote_hash=remote_hash,
+        remote_display_value=display,
+        branch=branch,
+        status=status,
+        sensitivity=sensitivity,
+        created=created,
+        updated=now,
+    )
+    write_text(project_file, project_text, args.write, result, overwrite=True)
+
+    registry_record = {
+        "workspaceId": workspace_id_value,
+        "projectId": project_id,
+        "repoId": repo_id,
+        "title": title,
+        "currentRoot": repo_root.as_posix(),
+        "localContextPath": (repo_root / ".codex-context").as_posix(),
+        "projectFilePath": project_file.as_posix(),
+        "lastSeenAt": now,
+        "status": status,
+        "sensitivity": sensitivity,
+    }
+    write_registry_record(target / "projects" / "index.jsonl", registry_record, args.write, result)
+    return result
+
+
 def global_readme() -> str:
     return f"""# Codex Global Context
 
 This directory stores user-global Codex context.
 
 It is not Codex configuration. Keep generated context here, and keep `~/.codex` focused on Codex settings.
+This store is intended to be private.
 
 ## Structure
 
 - `working-context.md`: lightweight user-global current truth.
 - `decisions/`: accepted global or user-level decisions.
 - `candidates/`: useful context that is not accepted as a decision yet.
-- `projects/`: optional project-level context that spans repositories.
+- `projects/index.jsonl`: registry of local Codex project workspaces.
+- `projects/<workspaceId>/`: optional per-workspace registry metadata.
+- `patterns/`: reusable cross-project patterns.
+- `skill-candidates/`: candidates for reusable Skills or Plugins.
+- `agents-candidates/`: candidates for global or repository AGENTS.md guidance.
+- `reviews/`: explicit global context review outputs.
 
 ## Safety
 
@@ -221,23 +446,29 @@ This file is the lightweight dashboard for user-global Codex context.
 
 - Global Codex context is stored in `~/.codex-context`.
 - Generated context is kept separate from Codex configuration in `~/.codex`.
+- Project workspaces are tracked in `projects/index.jsonl` by stable workspace IDs.
 - Repositories may import selected global context into `.codex-context/global-context/`.
 - Imported global context is historical reference, not an override for repository rules or current user instructions.
 
 ## Active Work
 
-- Establish `import-global-context` and `promote-global-context` as the explicit bridge between repository context and user-global context.
+- Establish explicit bridges for repository context registration, import, and promotion.
 
 ## Important Constraints
 
 - Do not store secrets, credentials, tokens, private keys, full env vars, large logs, or unnecessary personal/customer data.
+- This store is private, so project registry records may include local absolute paths.
 - Prefer candidates for unaccepted learnings.
 - Promote only reusable decisions and user-level working preferences.
 
 ## Key Files
 
+- `projects/index.jsonl`
 - `decisions/`
 - `candidates/`
+- `patterns/`
+- `skill-candidates/`
+- `agents-candidates/`
 """
 
 
@@ -263,8 +494,9 @@ Created: {now_iso()}
 def init_store(args: argparse.Namespace) -> Result:
     target = expand(args.target)
     result = Result()
-    for rel in ["decisions", "candidates", "projects"]:
+    for rel in GLOBAL_CONTEXT_DIRS:
         ensure_dir(target / rel, args.write, result)
+    write_text(target / "projects" / "index.jsonl", "", args.write, result)
     write_text(target / "README.md", global_readme(), args.write, result)
     write_text(target / "working-context.md", global_working_context(), args.write, result)
     return result
@@ -352,8 +584,9 @@ def promote_context(args: argparse.Namespace) -> Result:
     body = strip_frontmatter(raw_body)
 
     result = Result()
-    for rel in ["decisions", "candidates", "projects"]:
+    for rel in GLOBAL_CONTEXT_DIRS:
         ensure_dir(target / rel, args.write, result)
+    write_text(target / "projects" / "index.jsonl", "", args.write, result)
     write_text(target / "README.md", global_readme(), args.write, result)
     write_text(target / "working-context.md", global_working_context(), args.write, result)
 
@@ -446,6 +679,18 @@ def build_parser() -> argparse.ArgumentParser:
     read.add_argument("--write", action="store_true")
     read.add_argument("--log")
     read.set_defaults(func=import_context)
+
+    register = sub.add_parser("register-project", help="register this repository in ~/.codex-context")
+    register.add_argument("--target", default="~/.codex-context")
+    register.add_argument("--repo-root", default=".")
+    register.add_argument("--project-file", default=".codex-context/project.yml")
+    register.add_argument("--title")
+    register.add_argument("--status", choices=["active", "inactive", "archived"], default="active")
+    register.add_argument("--sensitivity", choices=["private", "internal", "public"], default="private")
+    register.add_argument("--dry-run", action="store_true")
+    register.add_argument("--write", action="store_true")
+    register.add_argument("--log")
+    register.set_defaults(func=register_project)
 
     promote = sub.add_parser("promote", help="promote context into ~/.codex-context")
     promote.add_argument("--target", default="~/.codex-context")
