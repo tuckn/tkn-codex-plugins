@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage user-global Codex context imports and promotions."""
+"""Manage Codex context registration, loading, auditing, imports, and promotions."""
 
 from __future__ import annotations
 
@@ -20,6 +20,9 @@ from typing import Iterable
 JST = timezone(timedelta(hours=9))
 DEFAULT_INCLUDE = "working-context,decisions,candidates"
 DEFAULT_LOAD_INCLUDE = "working-context,decisions,candidates,patterns,skill-candidates,agents-candidates"
+DEFAULT_FRESHNESS_INCLUDE = (
+    "working-context,project,decisions,sessions,candidates,patterns,skill-candidates,agents-candidates,reviews"
+)
 GLOBAL_CONTEXT_DIRS = [
     "decisions",
     "candidates",
@@ -55,6 +58,19 @@ class Result:
 
     def warn(self, message: str) -> None:
         self.warnings.append(message)
+
+
+@dataclass
+class FreshnessItem:
+    path: Path
+    category: str
+    type_name: str
+    title: str
+    updated_value: str
+    age_days: int | None
+    status: str
+    severity: str
+    flags: list[str]
 
 
 def now_compact() -> str:
@@ -155,6 +171,25 @@ def parse_load_include(value: str) -> set[str]:
     return parts or set(allowed)
 
 
+def parse_freshness_include(value: str) -> set[str]:
+    allowed = {
+        "working-context",
+        "project",
+        "decisions",
+        "sessions",
+        "candidates",
+        "patterns",
+        "skill-candidates",
+        "agents-candidates",
+        "reviews",
+    }
+    parts = {part.strip() for part in value.split(",") if part.strip()}
+    unknown = parts - allowed
+    if unknown:
+        raise SystemExit(f"Unknown include value(s): {', '.join(sorted(unknown))}")
+    return parts or set(allowed)
+
+
 def has_secret_like_content(text: str) -> list[str]:
     hits = []
     for pattern in SECRET_PATTERNS:
@@ -166,6 +201,243 @@ def has_secret_like_content(text: str) -> list[str]:
 
 def strip_frontmatter(text: str) -> str:
     return FRONTMATTER_PATTERN.sub("", text, count=1)
+
+
+def parse_simple_frontmatter(text: str) -> dict[str, str]:
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    metadata: dict[str, str] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if not line.strip() or line.startswith((" ", "\t")) or ":" not in line:
+            continue
+        key, raw_value = line.split(":", 1)
+        value = raw_value.strip()
+        if value in {"", "[]"}:
+            metadata[key.strip()] = ""
+        else:
+            metadata[key.strip()] = value.strip("'\"")
+    return metadata
+
+
+def parse_datetime_value(value: str) -> datetime | None:
+    cleaned = value.strip().strip("'\"")
+    if not cleaned:
+        return None
+    try:
+        parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            parsed = datetime.strptime(cleaned, "%Y%m%dT%H%M%S%z")
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=JST)
+    return parsed.astimezone(JST)
+
+
+def freshness_scope(source: Path, explicit_scope: str) -> str:
+    if explicit_scope != "auto":
+        return explicit_scope
+    if (source / "sessions").exists() or (source / "project.yml").exists():
+        return "repo"
+    return "global"
+
+
+def context_relative_path(source: Path, path: Path) -> str:
+    try:
+        return path.relative_to(source).as_posix()
+    except ValueError:
+        return source_ref(path)
+
+
+def context_source_label(source: Path, explicit_label: str | None) -> str:
+    if explicit_label:
+        return explicit_label
+    try:
+        return source.relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return source.name or "context-source"
+
+
+def freshness_threshold(category: str, args: argparse.Namespace) -> int:
+    if category == "working-context":
+        return args.working_context_days
+    if category == "project":
+        return args.project_days
+    if category == "sessions":
+        return args.session_days
+    if category == "decisions":
+        return args.decision_days
+    if category in {"candidates", "skill-candidates", "agents-candidates"}:
+        return args.candidate_days
+    if category == "patterns":
+        return args.pattern_days
+    return args.default_days
+
+
+def freshness_files(source: Path, include: set[str]) -> list[tuple[str, Path]]:
+    specs = [
+        ("working-context", source / "working-context.md", False),
+        ("project", source / "project.yml", False),
+        ("decisions", source / "decisions", True),
+        ("sessions", source / "sessions", True),
+        ("candidates", source / "candidates", True),
+        ("patterns", source / "patterns", True),
+        ("skill-candidates", source / "skill-candidates", True),
+        ("agents-candidates", source / "agents-candidates", True),
+        ("reviews", source / "reviews", True),
+    ]
+    found: list[tuple[str, Path]] = []
+    for category, path, is_folder in specs:
+        if category not in include:
+            continue
+        if is_folder:
+            if path.exists():
+                found.extend((category, item) for item in sorted(path.glob("*.md")) if item.is_file())
+        elif path.exists():
+            found.append((category, path))
+    return found
+
+
+def assess_freshness_file(
+    source: Path,
+    category: str,
+    path: Path,
+    args: argparse.Namespace,
+    now: datetime,
+) -> FreshnessItem:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    metadata = parse_simple_frontmatter(text)
+    updated_value = metadata.get("updated") or metadata.get("lastSeenAt") or metadata.get("date") or ""
+    updated_at = parse_datetime_value(updated_value)
+    age_days = (now - updated_at).days if updated_at else None
+    flags: list[str] = []
+
+    if not metadata:
+        flags.append("missing-frontmatter")
+    if not updated_value:
+        flags.append("missing-updated")
+    if updated_value and updated_at is None:
+        flags.append("unparseable-updated")
+
+    threshold = freshness_threshold(category, args)
+    if age_days is not None and age_days > threshold:
+        flags.append(f"stale>{threshold}d")
+
+    status = metadata.get("status", "")
+    if status in {"stale", "blocked", "waiting-for-user"}:
+        flags.append(f"status={status}")
+
+    distillation = metadata.get("distillationStatus", "")
+    if category == "sessions" and distillation in {"pending", "partial"}:
+        if age_days is None or age_days > args.session_pending_days:
+            flags.append(f"distillation={distillation}")
+
+    promotion = metadata.get("promotionStatus", "")
+    if promotion in {"pending", "partial"} and category in {"working-context", "decisions"}:
+        if age_days is None or age_days > args.promotion_pending_days:
+            flags.append(f"promotion={promotion}")
+
+    if has_secret_like_content(text):
+        flags.append("secret-like-content")
+
+    severity = "ok"
+    if "secret-like-content" in flags:
+        severity = "high"
+    elif any(flag.startswith(("stale>", "missing-", "unparseable-")) for flag in flags):
+        severity = "medium"
+    elif flags:
+        severity = "low"
+
+    return FreshnessItem(
+        path=path,
+        category=category,
+        type_name=metadata.get("type", category),
+        title=metadata.get("title", path.stem),
+        updated_value=updated_value,
+        age_days=age_days,
+        status=status,
+        severity=severity,
+        flags=flags,
+    )
+
+
+def render_freshness_report(
+    *,
+    source: Path,
+    source_label: str,
+    scope: str,
+    items: list[FreshnessItem],
+    args: argparse.Namespace,
+) -> str:
+    now = now_iso()
+    needs_review = [item for item in items if item.flags]
+    high = sum(1 for item in needs_review if item.severity == "high")
+    medium = sum(1 for item in needs_review if item.severity == "medium")
+    low = sum(1 for item in needs_review if item.severity == "low")
+
+    rows = []
+    for item in needs_review[: args.max_items]:
+        age = "" if item.age_days is None else str(item.age_days)
+        reasons = ", ".join(item.flags)
+        rows.append(
+            "| "
+            + " | ".join(
+                [
+                    item.severity,
+                    item.category,
+                    age,
+                    context_relative_path(source, item.path),
+                    item.title.replace("|", "/"),
+                    reasons.replace("|", "/"),
+                ]
+            )
+            + " |"
+        )
+    if not rows:
+        rows.append("| ok | - | - | - | No freshness issues found. | - |")
+
+    return f"""# Context Freshness Audit
+
+Date: {now}
+Source: `{source_label}`
+Scope: `{scope}`
+
+## Summary
+
+- Scanned files: {len(items)}
+- Needs review: {len(needs_review)}
+- High severity: {high}
+- Medium severity: {medium}
+- Low severity: {low}
+
+## Thresholds
+
+- Working context: {args.working_context_days} days
+- Project identity: {args.project_days} days
+- Session notes: {args.session_days} days
+- Pending session distillation: {args.session_pending_days} days
+- Decisions: {args.decision_days} days
+- Candidates: {args.candidate_days} days
+- Patterns: {args.pattern_days} days
+- Pending promotion: {args.promotion_pending_days} days
+- Default: {args.default_days} days
+
+## Review Items
+
+| Severity | Category | Age days | Path | Title | Reasons |
+| --- | --- | ---: | --- | --- | --- |
+{chr(10).join(rows)}
+
+## Notes
+
+- This audit is a freshness signal, not a correctness verdict.
+- Current user instructions, repository instructions, current files, and git state still take precedence.
+- Revalidate stale context against current evidence before promoting it to global context, AGENTS.md, or a Skill.
+"""
 
 
 def update_frontmatter_field(text: str, key: str, value: str) -> str:
@@ -642,6 +914,49 @@ def load_context(args: argparse.Namespace) -> Result:
     return result
 
 
+def audit_freshness(args: argparse.Namespace) -> Result:
+    source = expand(args.source)
+    include = parse_freshness_include(args.include)
+    result = Result()
+
+    if not source.exists():
+        raise SystemExit(f"Source does not exist: {source}")
+
+    scope = freshness_scope(source, args.scope)
+    now = datetime.now(JST)
+    items = [
+        assess_freshness_file(source, category, path, args, now)
+        for category, path in freshness_files(source, include)
+    ]
+    needs_review = [item for item in items if item.flags]
+    source_label = context_source_label(source, args.source_label)
+    report = render_freshness_report(
+        source=source,
+        source_label=source_label,
+        scope=scope,
+        items=items,
+        args=args,
+    )
+    report_path = expand(args.report_dest) / f"{now_compact()}-freshness-audit.md"
+
+    result.add("source", str(source))
+    result.add("source-label", source_label)
+    result.add("scope", scope)
+    result.add("scanned", str(len(items)))
+    result.add("needs-review", str(len(needs_review)))
+    for item in needs_review[: args.max_items]:
+        detail = (
+            f"{item.severity} {context_relative_path(source, item.path)} "
+            f"({item.category}): {', '.join(item.flags)}"
+        )
+        result.add("review", detail)
+    if len(needs_review) > args.max_items:
+        result.warn(f"{len(needs_review) - args.max_items} review item(s) omitted from stdout")
+
+    write_text(report_path, report, args.write, result, overwrite=True)
+    return result
+
+
 def make_manifest(source: Path, dest: Path, imported: list[str], result: Result) -> str:
     imported_lines = "\n".join(f"- `{path}`" for path in imported) or "- None"
     warning_lines = "\n".join(f"- {warning}" for warning in result.warnings) or "- None"
@@ -791,6 +1106,27 @@ def build_parser() -> argparse.ArgumentParser:
     load.add_argument("--agents-candidate", action="append", help="specific agents-candidate markdown filename to preview")
     load.add_argument("--preview-lines", type=int, default=8)
     load.set_defaults(func=load_context, write=False)
+
+    audit = sub.add_parser("audit-freshness", help="audit context freshness without changing source context")
+    audit.add_argument("--source", default=".codex-context")
+    audit.add_argument("--source-label")
+    audit.add_argument("--scope", choices=["auto", "repo", "global"], default="auto")
+    audit.add_argument("--include", default=DEFAULT_FRESHNESS_INCLUDE)
+    audit.add_argument("--report-dest", default=".local/codex-context/freshness-reviews")
+    audit.add_argument("--max-items", type=int, default=50)
+    audit.add_argument("--working-context-days", type=int, default=30)
+    audit.add_argument("--project-days", type=int, default=30)
+    audit.add_argument("--session-days", type=int, default=90)
+    audit.add_argument("--session-pending-days", type=int, default=14)
+    audit.add_argument("--decision-days", type=int, default=180)
+    audit.add_argument("--candidate-days", type=int, default=60)
+    audit.add_argument("--pattern-days", type=int, default=120)
+    audit.add_argument("--promotion-pending-days", type=int, default=30)
+    audit.add_argument("--default-days", type=int, default=90)
+    audit.add_argument("--dry-run", action="store_true")
+    audit.add_argument("--write", action="store_true")
+    audit.add_argument("--log")
+    audit.set_defaults(func=audit_freshness)
 
     register = sub.add_parser("register-project", help="register this repository in ~/.codex-context")
     register.add_argument("--target", default="~/.codex-context")

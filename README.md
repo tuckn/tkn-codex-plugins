@@ -43,6 +43,7 @@ plugins/tkn-codex-context-engineering/.codex-plugin/plugin.json
 
 Included Skills:
 
+- `audit-context-freshness`
 - `extract-codex-sessions`
 - `import-global-context`
 - `maintain-session-note`
@@ -56,7 +57,8 @@ Included Skills:
 
 The plugin preserves and resumes Codex working context through repository project registration,
 working context, session notes, decision records, local Codex session-log extraction, read-only
-global context loading, and explicit snapshot import or promotion through `~/.codex-context`.
+global context loading, freshness audit, and explicit snapshot import or promotion through
+`~/.codex-context`.
 
 ## Adding Plugins
 

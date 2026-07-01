@@ -13,6 +13,7 @@ from typing import Any
 
 
 DEFAULT_SKILLS = [
+    "audit-context-freshness",
     "extract-codex-sessions",
     "import-global-context",
     "maintain-session-note",

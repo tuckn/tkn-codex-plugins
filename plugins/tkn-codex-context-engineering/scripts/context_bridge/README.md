@@ -87,6 +87,17 @@ python3 <plugin-root>/scripts/context_bridge/load_global_context.py \
   --source ~/.codex-context
 ```
 
+Audit context freshness without changing source context:
+
+```bash
+python3 <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
+  --source .codex-context \
+  --dry-run
+```
+
+Use `--write` to save a freshness review report under
+`.local/codex-context/freshness-reviews/`.
+
 Create a local snapshot of global context:
 
 ```bash
