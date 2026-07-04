@@ -1,6 +1,6 @@
 ---
 name: review-decisions
-description: ~/.codex-context/projects/<projectId>/decisions を Frontmatter metadata と本文で review し、durable repository documents への updates、global context 候補、promotionStatus 更新案を提案または適用する。decision 棚卸し、documented すべき decisions 発見、global context 候補抽出、accepted decision records からの repository guidance 更新依頼で使う。
+description: 登録済み current project の ~/.codex-context/projects/<projectId>/decisions またはユーザー指定の explicit decisions directory を Frontmatter metadata と本文で review し、durable repository documents への updates、global context 候補、promotionStatus 更新案を提案または適用する。ユーザー意図が decision 棚卸し、documented すべき decisions 発見、global context 候補抽出、accepted decision records からの repository guidance 更新依頼に一致する場合に使う。marker 生成だけでは使わない。
 ---
 
 # Review Decisions
@@ -8,6 +8,14 @@ description: ~/.codex-context/projects/<projectId>/decisions を Frontmatter met
 蓄積した decision records を maintained project documentation に反映するために、この skill を使う。
 
 目的は、project `decisions/` が isolated archive になることを防ぐことだ。Accepted decisions は、future humans と Codex が実際に読む durable documents に定期的に反映するべきだ。
+
+## Activation Gate
+
+この skill は、ユーザーが decision review、棚卸し、document update、global context candidate 抽出、promotion metadata review を依頼した場合だけ使う。
+
+Current project の decisions を review する場合、現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる必要がある。ユーザーが explicit decisions directory を指定した場合は、その directory を検証して対象にできる。
+
+`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、対象 path の指定または `register-project-context` を案内する。
 
 ## Inputs
 

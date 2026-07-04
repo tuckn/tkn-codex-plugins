@@ -1,11 +1,20 @@
 ---
 name: migrate-local-project-context
-description: Move or safely migrate legacy repo-local Codex context from `.codex-context/working-context.md`, `.codex-context/sessions/`, and `.codex-context/decisions/` into the projectId-specific private global project context folder under `~/.codex-context/projects/` using the current project registry model. Use when old Skills or old repo-local context files need to be upgraded, migrated, consolidated, or moved to the latest `.codex-context/project.yaml` plus private global project context layout.
+description: Move or safely migrate legacy repo-local Codex context from `.codex-context/working-context.md`, `.codex-context/sessions/`, and `.codex-context/decisions/` into the projectId-specific private global project context folder under `~/.codex-context/projects/` using the current project registry model. Entry Skill usable before registration when the user explicitly asks to upgrade, migrate, consolidate, or move old context to the latest `.codex-context/project.yaml` plus private global project context layout; marker creation alone is not a trigger.
 ---
 
 # Migrate Local Project Context
 
 Use this skill to upgrade legacy repo-local Codex context into the current private project context layout.
+
+## Activation Boundary
+
+This is an entry Skill and may run before `.codex-context/project.yaml` exists.
+
+- Use this skill only when the user intends to migrate, consolidate, move, or upgrade legacy repo-local context.
+- Do not run migration just because `.codex-context/project.yaml` exists or was generated.
+- Running `register-project-context` during this workflow is allowed because migration/update intent is already explicit.
+- After registration, continue only if `.codex-context/project.yaml` resolves through `~/.codex-context/projects/index.jsonl` for the current workspace.
 
 The current layout keeps only the thin local marker in the repository:
 

@@ -1,6 +1,6 @@
 ---
 name: organize-brain-dump
-description: ユーザーが思いつくままに書いた Brain-Dump、箇条書き、文の羅列、未整理メモを整理し、その上で Codex の意見・助言・次アクションを `_inbox/ai/` の Frontmatter 付き Markdown に出力する依頼で使う。思考整理、壁打ち、相談、論点整理、仮説整理、作業記録案、運用案、ブログやSNSの素材化候補の整理に使う。
+description: ユーザーが思いつくままに書いた Brain-Dump、箇条書き、文の羅列、未整理メモを整理し、その上で Codex の意見・助言・次アクションを Frontmatter 付き Markdown に出力する依頼で使う。既定では登録済み Codex Project の project memos folder に保存し、chat や AGENTS.md などに保存場所の指示がある場合はそれを優先する。思考整理、壁打ち、相談、論点整理、仮説整理、作業記録案、運用案、ブログやSNSの素材化候補の整理に使う。
 ---
 
 # Organize Brain Dump
@@ -11,13 +11,24 @@ Brain-Dump を、素材の勢いを失わせずに扱いやすい Markdown note 
 
 ## Output location
 
-原則として、整理結果は `_inbox/ai/` に新規 Markdown file として作成する。
+整理結果は、次の優先順で新規 Markdown file として作成する。
 
-`_inbox/ai/YYYYMMDDTHHMMSS<system-timezone-offset>_<short-ja-or-en-title>.md`
+1. chat 内でユーザーが保存場所を指示した場合は、その場所に従う。
+2. `AGENTS.md` などの repository instructions が保存場所を指定している場合は、その場所に従う。
+3. それ以外では、登録済み current project の `~/.codex-context/projects/<projectId>/memos/` に作成する。
+
+既定の filename:
+
+`~/.codex-context/projects/<projectId>/memos/YYYYMMDDTHHMMSS<system-timezone-offset>_<short-ja-or-en-title>.md`
 
 - timestamp は system timezone の offset 付き local time を使う。
 - filename title は内容が scan できる短い名前にする。
-- 既存 note を直接大きく変更しない。必要なら `_inbox/ai/` に案を作る。
+- current project に保存する場合は、`.codex-context/project.yaml` と `~/.codex-context/projects/index.jsonl` から `projectId` と project context folder を解決する。
+- `memos/` が存在しない場合は作成する。
+- current project を解決できず、明示的な保存場所もない場合は、保存前にユーザーへ保存場所の指定または project registration を依頼する。
+- `sessions/` や `decisions/` には保存しない。それらが必要な場合は、対応する session / decision Skill を使う。
+- `_inbox/ai/` は、chat または repository instructions が明示した場合だけ使う。
+- 既存 note を直接大きく変更しない。必要なら選択した保存場所に案を作る。
 - chat reply では、作成 file path と要点だけを短く返す。
 
 ## Required Frontmatter
@@ -49,7 +60,7 @@ noteId: <UUID>
 5. Codex の意見を、整理結果と混ぜずに別 section で書く。
 6. 次アクションを、すぐできるものと、調査・設計が必要なものに分ける。
 7. ユーザーに確認すべき質問を、Markdown 内の独立 section として作る。
-8. `_inbox/ai/` に Markdown file を作成する。
+8. Output location の優先順に従って Markdown file を作成する。
 9. 必要に応じて作成 file の内容を確認し、frontmatter と見出しを検証する。
 
 ## Recommended structure

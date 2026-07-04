@@ -1,6 +1,6 @@
 ---
 name: register-project-context
-description: Register or refresh a Codex Project folder by writing repo-local `.codex-context/project.yaml`, indexing it in the private `~/.codex-context/projects/index.jsonl` registry, and creating private project context under `~/.codex-context/projects/<projectId>/`. Use when initializing context for a project folder, after a project folder move or rename, when connecting a folder to private Codex context, or when updating project registry metadata.
+description: Register or refresh a Codex Project folder by writing repo-local `.codex-context/project.yaml`, indexing it in the private `~/.codex-context/projects/index.jsonl` registry, and creating private project context under `~/.codex-context/projects/<projectId>/`. Use when the user explicitly wants to initialize, connect, move, rename, or update project context; registration is a readiness gate and does not trigger other Skills by itself.
 ---
 
 # Register Project Context
@@ -8,6 +8,15 @@ description: Register or refresh a Codex Project folder by writing repo-local `.
 Use this skill to give a Codex Project folder a stable private context identity that does not depend on the current folder name.
 
 The project folder has a small repo-local marker file for matching the local folder to the private global registry. Project context files are stored under the user's home directory because working context, sessions, and decisions can contain private details.
+
+## Registration Boundary
+
+Registration is a readiness gate, not an automatic trigger for other Skills.
+
+- Creating or refreshing `.codex-context/project.yaml` only marks the repository as intentionally connected to private project context.
+- Other project-scoped Skills still require matching user intent before they run.
+- Do not start session notes, decisions, working-context updates, distillation, review, import, promotion, or audits just because this skill created the marker.
+- After registration, downstream Skills should verify that `.codex-context/project.yaml` resolves through `~/.codex-context/projects/index.jsonl` for the current workspace before reading or writing project context.
 
 ## Artifacts
 

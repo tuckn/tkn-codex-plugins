@@ -1,6 +1,6 @@
 ---
 name: promote-global-context
-description: repo-local .codex-context の session、decision、working context から reusable Codex context を抽出し、script 経由で ~/.codex-context へ promote する。context を global に save、write、update、promote する依頼や promotionStatus 更新で使う。
+description: 登録済み current project の session、decision、working context またはユーザー指定の explicit source から reusable Codex context を抽出し、script 経由で ~/.codex-context へ promote する。context を global に save、write、update、promote する依頼や promotionStatus 更新で使う。current-project source は `.codex-context/project.yaml` が private registry で現在 workspace に解決できることが必要で、marker 生成だけでは使わない。
 ---
 
 # Promote Global Context
@@ -8,6 +8,14 @@ description: repo-local .codex-context の session、decision、working context 
 ユーザーが現在の repository または chat knowledge を user-global Codex context に保存するよう依頼したときに、この skill を使う。
 
 目的は、repo-specific または sensitive information の accidental promotion を避けつつ、repositories をまたぐ future Codex sessions を改善することだ。repo-local `.codex-context` の silver artifacts を、必要な範囲だけ user-global gold context へ昇格する。
+
+## Activation Gate
+
+この skill は、ユーザーが global context への save、write、update、promote、または promotionStatus 更新を明示した場合だけ使う。
+
+Current project の session、decision、working context を source にする場合、現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる必要がある。ユーザーが explicit source path を指定した場合は、その path を検証して対象にできる。
+
+`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、source path の指定または `register-project-context` を案内する。
 
 ## Target
 

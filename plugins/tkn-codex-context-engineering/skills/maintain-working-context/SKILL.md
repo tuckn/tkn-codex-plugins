@@ -1,6 +1,6 @@
 ---
 name: maintain-working-context
-description: ~/.codex-context/projects/<projectId>/working-context.md を lightweight Codex Project dashboard として作成、確認、更新する。非自明な作業開始、active work changes、important decision changes、または working context 更新依頼で使う。
+description: 登録済み current project の ~/.codex-context/projects/<projectId>/working-context.md を lightweight Codex Project dashboard として作成、確認、更新する。ユーザー意図が非自明な作業開始、active work changes、important decision changes、または working context 更新依頼に一致し、`.codex-context/project.yaml` が private registry で現在 workspace に解決できる場合に使う。marker 生成だけでは使わない。
 ---
 
 # Maintain Working Context
@@ -9,13 +9,24 @@ description: ~/.codex-context/projects/<projectId>/working-context.md を lightw
 
 目的は、future human または Codex session がすべての session notes や decision records を読まずに、現在の repository state を素早く理解できるようにすることだ。
 
+## Activation Gate
+
+この skill は project-scoped な working context を読むまたは書くため、次の両方を満たす場合だけ実行準備ができている。
+
+- ユーザー意図がこの skill に一致する。例: working context 確認、更新、active work changes、important decision changes。
+- 現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる。
+
+`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。
+
+未登録または registry 解決不能の場合、working context を作成または更新しない。`register-project-context` を案内し、登録を実行するのはユーザーが明示的に register/update を依頼した場合だけにする。
+
 ## File location
 
 Default location:
 
 `~/.codex-context/projects/<projectId>/working-context.md`
 
-Project context folder は `~/.codex-context/projects/index.jsonl` の `projectId` と `workingContextPath` から解決する。未登録の場合は `register-project-context` を使う。
+Project context folder は `~/.codex-context/projects/index.jsonl` の `projectId` と `workingContextPath` から解決する。未登録の場合は自動登録せず、`register-project-context` を案内する。
 
 ## Role
 

@@ -82,7 +82,8 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `audit-context-freshness`: Audits repo-local or global context for stale metadata,
   pending distillation or promotion work, and reuse risks.
 - `organize-brain-dump`: Turns rough notes, idea dumps, or loose consultation
-  material into structured Markdown advice under `_inbox/ai/`.
+  material into structured Markdown advice under project `memos/` by default,
+  while respecting explicit chat or repository destination instructions.
 
 ## Local And Global Context
 
@@ -95,3 +96,19 @@ user-global store.
 - User-global context lives under `~/.codex-context`.
 - Global context loading should be read-only by default.
 - Snapshot imports and global promotions should happen only when explicitly requested.
+
+## Activation Model
+
+Project registration is a readiness gate, not an automatic trigger.
+
+- A Skill should run because the user intent matches that Skill.
+- For project-scoped context reads or writes, the current repository must also be intentionally
+  registered: `.codex-context/project.yaml` exists and its `projectId` resolves in
+  `~/.codex-context/projects/index.jsonl` for the current workspace.
+- Creating `.codex-context/project.yaml` does not by itself start session notes, decisions,
+  working-context updates, distillation, review, import, promotion, or audits.
+- If a project-scoped Skill is requested before registration, guide the user to
+  `register-project-context`; only invoke registration when the user explicitly asks to register,
+  migrate, move, or update project context.
+- Entry Skills such as `register-project-context` and `migrate-local-project-context` may run before
+  registration because their purpose is to create or repair that readiness gate.

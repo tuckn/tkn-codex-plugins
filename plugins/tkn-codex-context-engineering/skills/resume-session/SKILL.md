@@ -1,6 +1,6 @@
 ---
 name: resume-session
-description: 新しい chat で既存の ~/.codex-context/projects/<projectId>/sessions session note を継続対象として指定し、その chat では新規 session note を作成せず指定 session note を更新する。resume、continue、継続、再開、引き継ぎ、session path/name 指定で使う。
+description: 新しい chat で既存の ~/.codex-context/projects/<projectId>/sessions session note またはユーザー指定の explicit session note を継続対象として指定し、その chat では新規 session note を作成せず指定 session note を更新する。resume、continue、継続、再開、引き継ぎ、session path/name 指定で使う。current project から解決する場合は `.codex-context/project.yaml` が private registry で現在 workspace に解決できることが必要で、marker 生成だけでは使わない。
 ---
 
 # Resume Session
@@ -8,6 +8,14 @@ description: 新しい chat で既存の ~/.codex-context/projects/<projectId>/s
 新しい chat で既存 session note の続きを行うために、この skill を使う。
 
 目的は、作業状態を別 session note に分散させず、指定された project `sessions/*.md` をこの chat の canonical session note として継続更新することだ。
+
+## Activation Gate
+
+この skill は、ユーザーが既存 session note の resume、continue、継続、再開、引き継ぎを依頼した場合だけ使う。
+
+ユーザーが完全な session note path を指定した場合、その file を明示 source として扱える。filename、basename、または「最新の session」のように current project から解決する場合は、現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる必要がある。
+
+`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、明示 path の指定または `register-project-context` を案内する。
 
 ## Command shape
 

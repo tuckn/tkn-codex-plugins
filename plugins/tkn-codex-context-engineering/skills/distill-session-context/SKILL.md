@@ -1,6 +1,6 @@
 ---
 name: distill-session-context
-description: Distill a Codex Project session note from `~/.codex-context/projects/<projectId>/sessions` into a short review candidate for reusable context and finalize the source session's distillation metadata after review. Use when the user asks to distill, summarize, extract reusable learning, turn a session note into context, prepare context candidates, review or close pending distillationStatus, update distilledTo, or create decision/working-context/Skill/AGENTS candidates from project sessions.
+description: Distill a Codex Project session note from `~/.codex-context/projects/<projectId>/sessions` or a user-specified explicit session note into a short review candidate for reusable context and finalize the source session's distillation metadata after review. Use when the user asks to distill, summarize, extract reusable learning, review or close pending distillationStatus, update distilledTo, or create decision/working-context/Skill/AGENTS candidates. Current-project resolution requires `.codex-context/project.yaml` to resolve in the private registry; marker creation alone is not a trigger.
 ---
 
 # Distill Session Context
@@ -8,6 +8,14 @@ description: Distill a Codex Project session note from `~/.codex-context/project
 Use this skill to turn one session note into a reviewable context candidate, then close the source session metadata after the reviewed learning has an accepted destination.
 
 Default to candidate generation. Do not mark the source session as distilled, update working context, create decision records, promote global context, or edit AGENTS.md/Skills unless the user explicitly asks for that follow-up.
+
+## Activation Gate
+
+This skill runs only when the user asks to distill, summarize, review, or finalize a session note.
+
+If the user provides an explicit session note path, use that file as the source after verifying it exists and is safe to read. If the source must be resolved from the current project, the repository must be intentionally registered: `.codex-context/project.yaml` exists and its `projectId` resolves through `~/.codex-context/projects/index.jsonl` for the current workspace.
+
+The marker file alone does not trigger distillation or finalization. If project registration is missing, ask for an explicit session path or guide the user to `register-project-context`; only invoke registration when the user explicitly asks to register or update project context.
 
 ## Workflow
 

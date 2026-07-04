@@ -1,6 +1,6 @@
 ---
 name: audit-context-freshness
-description: Audit repo-local or user-global Codex context for stale, pending, missing, or risky freshness metadata. Use when the user asks to review context freshness, stale context, outdated decisions, pending distillation, pending promotion, or whether context should be revalidated before reuse.
+description: Audit repo-local, current-project, or user-global Codex context for stale, pending, missing, or risky freshness metadata. Use when the user asks to review context freshness, stale context, outdated decisions, pending distillation, pending promotion, or whether context should be revalidated before reuse. Current-project audits require `.codex-context/project.yaml` to resolve in the private registry; marker creation alone is not a trigger.
 ---
 
 # Audit Context Freshness
@@ -8,6 +8,14 @@ description: Audit repo-local or user-global Codex context for stale, pending, m
 Use this skill to inspect whether Codex context is still fresh enough to reuse.
 
 Default to read-only audit. Do not update context files, global context, AGENTS.md, or Skills unless the user explicitly asks for the follow-up changes after seeing the audit.
+
+## Activation Gate
+
+This skill runs only when the user asks for a freshness, stale-context, pending-review, or reuse-risk audit.
+
+For current-project audits, the repository must be intentionally registered: `.codex-context/project.yaml` exists and its `projectId` resolves through `~/.codex-context/projects/index.jsonl` for the current workspace.
+
+The marker file alone does not trigger an audit. Legacy repo-local `.codex-context` audits and explicit user-global `~/.codex-context` audits may run without a current project registration, but they remain read-only by default.
 
 ## Workflow
 

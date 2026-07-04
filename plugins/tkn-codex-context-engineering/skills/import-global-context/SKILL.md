@@ -1,6 +1,6 @@
 ---
 name: import-global-context
-description: Load selected user-global Codex context from `~/.codex-context` into the current task, preferably read-only, and create repository snapshots only when explicitly requested. Use when the user asks to load, import, apply, reference, or use global Codex context, other-chat context, or cross-repository Codex context.
+description: Load selected user-global Codex context from `~/.codex-context` into the current task, preferably read-only, and create repository snapshots only when explicitly requested. Use when the user asks to load, import, apply, reference, or use global Codex context, other-chat context, or cross-repository Codex context. Project side effects require `.codex-context/project.yaml` to resolve in the private registry; marker creation alone is not a trigger.
 ---
 
 # Import Global Context
@@ -8,6 +8,14 @@ description: Load selected user-global Codex context from `~/.codex-context` int
 Use this skill when the user asks to use user-global Codex context in the current repository.
 
 Default to read-only load. Do not copy global context into the repository unless the user explicitly asks for an import, snapshot, or write.
+
+## Activation Gate
+
+This skill runs only when the user asks to load, import, apply, reference, or use global or cross-repository context.
+
+Project registration is required only for current-project context steps, such as checking project `working-context.md` or recording how imported context was used in a project session note. For those steps, `.codex-context/project.yaml` must exist and its `projectId` must resolve through `~/.codex-context/projects/index.jsonl` for the current workspace.
+
+The marker file alone does not trigger global-context loading. If project registration is missing, keep the load read-only and do not create project context records unless the user explicitly asks to register or write project context.
 
 ## Source
 

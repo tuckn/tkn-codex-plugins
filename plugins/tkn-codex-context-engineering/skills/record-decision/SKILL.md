@@ -1,6 +1,6 @@
 ---
 name: record-decision
-description: 現在の chat を超えて残すべき decisions について、~/.codex-context/projects/<projectId>/decisions 配下に durable decision record を作成する。future humans または Codex が再利用すべき project、product、solution、design、workflow、operation、documentation、repository、collaboration decisions で使う。temporary session state、routine implementation details、command logs、chat summaries では使わない。
+description: 登録済み current project の ~/.codex-context/projects/<projectId>/decisions 配下に durable decision record を作成する。ユーザー意図が future humans または Codex が再利用すべき project、product、solution、design、workflow、operation、documentation、repository、collaboration decisions に一致し、`.codex-context/project.yaml` が private registry で現在 workspace に解決できる場合に使う。marker 生成だけでは使わない。
 ---
 
 # Record Decision
@@ -11,6 +11,17 @@ decision record は architecture に限定しない。project、product、soluti
 
 decision records は project-scoped または repositories をまたいで reusable になり得る。重要な場合は scope を明示する。
 
+## Activation Gate
+
+この skill は project-scoped な decision record を書くため、次の両方を満たす場合だけ実行準備ができている。
+
+- ユーザー意図がこの skill に一致する。例: chat を超えて残すべき decision、accepted workflow、reusable rejected alternative。
+- 現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる。
+
+`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。
+
+未登録または registry 解決不能の場合、decision record を作成しない。`register-project-context` を案内し、登録を実行するのはユーザーが明示的に register/update を依頼した場合だけにする。
+
 ## File location
 
 decision ごとに 1 file を作成する。
@@ -18,7 +29,7 @@ decision ごとに 1 file を作成する。
 `~/.codex-context/projects/<projectId>/decisions/DR-NNNN-<decision-title-slug>.md`
 
 - `DR-NNNN` は four-digit sequence number。
-- `~/.codex-context/projects/index.jsonl` から project context folder を解決する。未登録の場合は `register-project-context` を使う。
+- `~/.codex-context/projects/index.jsonl` から project context folder を解決する。未登録の場合は自動登録せず、`register-project-context` を案内する。
 - 既存の project `decisions/DR-*.md` filenames を確認し、次に利用可能な number を使用。
 - core decision から作る短い kebab-case English slug の利用。
 - number を選ぶためだけにすべての decision files を読まないこと。通常は filenames で十分。

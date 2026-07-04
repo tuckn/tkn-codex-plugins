@@ -81,8 +81,9 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 
 - `audit-context-freshness`: repo-local または global context の stale metadata、pending
   distillation / promotion、再利用リスクを監査します。
-- `organize-brain-dump`: rough notes、idea dump、相談メモを整理し、`_inbox/ai/` 配下の
-  structured Markdown advice に変換します。
+- `organize-brain-dump`: rough notes、idea dump、相談メモを整理し、既定では project
+  `memos/` 配下の structured Markdown advice に変換します。chat や repository instructions
+  で保存場所が指定された場合は、その指示を優先します。
 
 ## Local context と Global context
 
@@ -95,3 +96,20 @@ user-global store に置きます。
 - User-global context は `~/.codex-context` に置きます。
 - Global context の読み込みは、既定では read-only にします。
 - Snapshot import や global promotion は、明示的に依頼された場合だけ行います。
+
+## 発動モデル
+
+Project 登録は readiness gate であり、自動発動の trigger ではありません。
+
+- Skill は、ユーザーの意図がその Skill に一致した場合に使います。
+- Project-scoped な context を読んだり書いたりする Skill では、現在の repository が意図的に
+  登録済みであることも必要です。つまり `.codex-context/project.yaml` が存在し、その
+  `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる
+  状態です。
+- `.codex-context/project.yaml` が作成されただけで、session note、decision、
+  working-context update、distillation、review、import、promotion、audit は開始しません。
+- 未登録の状態で project-scoped Skill が必要になった場合は、`register-project-context` を
+  案内します。登録を実行するのは、ユーザーが register、migrate、move、project context 更新を
+  明示的に依頼した場合だけです。
+- `register-project-context` と `migrate-local-project-context` のような入口 Skill は、
+  readiness gate を作成または修復するため、未登録状態でも使えます。
