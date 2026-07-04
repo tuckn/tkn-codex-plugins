@@ -65,7 +65,8 @@ python3 <plugin-root>/scripts/context_bridge/context_bridge.py init --target ~/.
 python3 <plugin-root>/scripts/context_bridge/context_bridge.py init --target ~/.codex-context --write
 ```
 
-The initialized store includes `projects/index.jsonl`, `patterns/`, `skill-candidates/`,
+The initialized store includes `projects/index.jsonl`, `projects/<projectId>/`,
+`patterns/`, `skill-candidates/`,
 `agents-candidates/`, and `reviews/` in addition to decisions and candidates.
 
 Register this repository in the private project registry:
@@ -77,8 +78,9 @@ python3 <plugin-root>/scripts/context_bridge/register_project_context.py \
   --dry-run
 ```
 
-Use `--write` to create or update `.codex-context/project.yml` and
-`~/.codex-context/projects/index.jsonl`.
+Use `--write` to create or update the local `.codex-context/project.yaml`
+marker, index the Codex Project folder in `~/.codex-context/projects/index.jsonl`,
+and create private project context under `~/.codex-context/projects/<projectId>/`.
 
 Load selected global context without writing files:
 
@@ -102,7 +104,7 @@ Distill a session note into a review candidate:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/distill_session_context.py \
-  --session .codex-context/sessions/<session-note>.md \
+  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --dry-run
 ```
 
@@ -113,9 +115,9 @@ Finalize a reviewed session distillation:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
-  --session .codex-context/sessions/<session-note>.md \
+  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --status distilled \
-  --distilled-to .codex-context/decisions/DR-0001-example.md \
+  --distilled-to ~/.codex-context/projects/<projectId>/decisions/DR-0001-example.md \
   --dry-run
 ```
 

@@ -21,7 +21,7 @@ JST = timezone(timedelta(hours=9))
 DEFAULT_INCLUDE = "working-context,decisions,candidates"
 DEFAULT_LOAD_INCLUDE = "working-context,decisions,candidates,patterns,skill-candidates,agents-candidates"
 DEFAULT_FRESHNESS_INCLUDE = (
-    "working-context,project,decisions,sessions,candidates,patterns,skill-candidates,agents-candidates,reviews"
+    "working-context,decisions,sessions,candidates,patterns,skill-candidates,agents-candidates,reviews"
 )
 DISTILL_REUSABLE_SECTIONS = [
     "important decisions",
@@ -191,7 +191,6 @@ def parse_load_include(value: str) -> set[str]:
 def parse_freshness_include(value: str) -> set[str]:
     allowed = {
         "working-context",
-        "project",
         "decisions",
         "sessions",
         "candidates",
@@ -364,7 +363,7 @@ def parse_datetime_value(value: str) -> datetime | None:
 def freshness_scope(source: Path, explicit_scope: str) -> str:
     if explicit_scope != "auto":
         return explicit_scope
-    if (source / "sessions").exists() or (source / "project.yml").exists():
+    if (source / "sessions").exists() or (source / "working-context.md").exists():
         return "repo"
     return "global"
 
@@ -388,8 +387,6 @@ def context_source_label(source: Path, explicit_label: str | None) -> str:
 def freshness_threshold(category: str, args: argparse.Namespace) -> int:
     if category == "working-context":
         return args.working_context_days
-    if category == "project":
-        return args.project_days
     if category == "sessions":
         return args.session_days
     if category == "decisions":
@@ -404,7 +401,6 @@ def freshness_threshold(category: str, args: argparse.Namespace) -> int:
 def freshness_files(source: Path, include: set[str]) -> list[tuple[str, Path]]:
     specs = [
         ("working-context", source / "working-context.md", False),
-        ("project", source / "project.yml", False),
         ("decisions", source / "decisions", True),
         ("sessions", source / "sessions", True),
         ("candidates", source / "candidates", True),
@@ -540,7 +536,6 @@ Scope: `{scope}`
 ## Thresholds
 
 - Working context: {args.working_context_days} days
-- Project identity: {args.project_days} days
 - Session notes: {args.session_days} days
 - Pending session distillation: {args.session_pending_days} days
 - Decisions: {args.decision_days} days
@@ -819,55 +814,204 @@ def workspace_id(existing: str) -> str:
     return existing or f"ws_{uuid.uuid4().hex}"
 
 
-def render_project_yml(
+def short_random_id(length: int = 8) -> str:
+    alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
+    value = uuid.uuid4().int
+    chars: list[str] = []
+    while len(chars) < length:
+        value, remainder = divmod(value, len(alphabet))
+        chars.append(alphabet[remainder])
+    return "".join(chars)
+
+
+def project_id(title: str, created_at: str) -> str:
+    date_part = re.sub(r"[^0-9]", "", created_at[:10]) or datetime.now(JST).strftime("%Y%m%d")
+    slug = slugify(title)[:48].strip("-") or "codex-project"
+    return f"{date_part}_{slug}_{short_random_id()}"
+
+
+def normalize_registry_path(value: str | Path) -> str:
+    if not value:
+        return ""
+    raw = str(value).strip().replace("\\", "/").rstrip("/")
+    drive_match = re.match(r"^([A-Za-z]):/(.*)$", raw)
+    if drive_match:
+        return f"{drive_match.group(1).upper()}:/{drive_match.group(2)}".rstrip("/")
+    wsl_match = re.match(r"^/mnt/([A-Za-z])/(.*)$", raw)
+    if wsl_match:
+        return f"{wsl_match.group(1).upper()}:/{wsl_match.group(2)}".rstrip("/")
+    try:
+        resolved = Path(value).expanduser().resolve().as_posix().rstrip("/")
+    except OSError:
+        return raw
+    wsl_match = re.match(r"^/mnt/([A-Za-z])/(.*)$", resolved)
+    if wsl_match:
+        return f"{wsl_match.group(1).upper()}:/{wsl_match.group(2)}".rstrip("/")
+    return resolved
+
+
+def registry_path_exists(value: object) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    raw = value.strip().replace("\\", "/")
+    candidates = [Path(raw).expanduser()]
+    drive_match = re.match(r"^([A-Za-z]):/(.*)$", raw)
+    if drive_match:
+        candidates.append(Path(f"/mnt/{drive_match.group(1).lower()}/{drive_match.group(2)}"))
+    wsl_match = re.match(r"^/mnt/([A-Za-z])/(.*)$", raw)
+    if wsl_match:
+        candidates.append(Path(f"{wsl_match.group(1).upper()}:/{wsl_match.group(2)}"))
+    for candidate in candidates:
+        try:
+            if candidate.exists():
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def select_project_record(
+    records: list[dict[str, object]],
+    repo_root: Path,
+    repo_id: str,
+    local_project_id: str,
+) -> tuple[dict[str, object] | None, str, int]:
+    current_root = normalize_registry_path(repo_root)
+    for record in records:
+        if normalize_registry_path(str(record.get("currentRoot") or "")) == current_root:
+            return record, "same-root", len(records)
+    if local_project_id:
+        project_records = [record for record in records if record.get("projectId") == local_project_id]
+        if len(project_records) == 1:
+            record = project_records[0]
+            old_root = record.get("currentRoot")
+            if not old_root or not registry_path_exists(old_root):
+                return record, "moved-root", len(project_records)
+            return None, "new-project-local-conflict", len(project_records)
+        if len(project_records) > 1:
+            return None, "new-project-local-conflict", len(project_records)
+    repo_records = [record for record in records if repo_id and record.get("repoId") == repo_id]
+    if len(repo_records) == 1:
+        record = repo_records[0]
+        old_root = record.get("currentRoot")
+        if old_root and not registry_path_exists(old_root):
+            return record, "moved-root", len(repo_records)
+    return None, "new-project", len(repo_records)
+
+
+def repo_id_from_remote_or_record(remote: str, record: dict[str, object] | None) -> str:
+    if remote:
+        return f"repo_{short_hash(remote)}"
+    if record:
+        existing = str(record.get("repoId") or "")
+        if existing:
+            return existing
+    return f"repo_{uuid.uuid4().hex}"
+
+
+def render_minimal_working_context(*, title: str, project_id: str, updated: str) -> str:
+    metadata = frontmatter([
+        ("type", "workingContext"),
+        ("title", title),
+        ("description", f"Current truth for {title}."),
+        ("projectId", project_id),
+        ("generator", "Codex"),
+        ("status", "active"),
+        ("promotionStatus", "pending"),
+        ("promotedTo", []),
+        ("date", updated),
+        ("updated", updated),
+    ])
+    return f"""{metadata}
+
+# Working Context
+
+## Purpose
+
+Describe the repository purpose.
+
+## Current Truth
+
+- Codex project identity is recorded in this file's Frontmatter as `projectId`.
+- Project context is stored in the private global project folder for this `projectId`.
+
+## Active Work
+
+None.
+
+## Important Constraints
+
+None.
+
+## Recent Decisions
+
+None.
+
+## Key Files
+
+- `working-context.md`
+- `sessions/`
+- `decisions/`
+
+## Next Maintenance
+
+- Update this dashboard when repository current truth changes.
+"""
+
+
+def update_working_context_identity(
     *,
+    existing_text: str,
     title: str,
     project_id: str,
-    workspace_id_value: str,
-    repo_id: str,
-    remote_hash: str,
-    remote_display_value: str,
-    branch: str,
-    status: str,
-    sensitivity: str,
-    created: str,
     updated: str,
 ) -> str:
-    return f"""---
-type: codexProjectContext
-schemaVersion: 1
-title: {yaml_string(title)}
-generator: Codex
-created: {yaml_string(created)}
-updated: {yaml_string(updated)}
----
+    if not existing_text:
+        return render_minimal_working_context(title=title, project_id=project_id, updated=updated)
+    if existing_text.startswith("---"):
+        lines, body = split_frontmatter_lines(existing_text)
+        lines = replace_frontmatter_scalar(lines, "projectId", project_id)
+        lines = replace_frontmatter_scalar(lines, "updated", updated)
+        return "".join(lines) + body
+    metadata = frontmatter([
+        ("type", "workingContext"),
+        ("title", title),
+        ("description", f"Current truth for {title}."),
+        ("projectId", project_id),
+        ("generator", "Codex"),
+        ("status", "active"),
+        ("promotionStatus", "pending"),
+        ("promotedTo", []),
+        ("date", updated),
+        ("updated", updated),
+    ])
+    return f"{metadata}\n\n{existing_text}"
 
-identity:
-  projectId: {yaml_string(project_id)}
-  workspaceId: {yaml_string(workspace_id_value)}
-  repoId: {yaml_string(repo_id)}
 
-paths:
-  currentRoot: ""
-  knownRoots: []
+def project_description(*, existing_project_text: str, working_context_text: str, title: str) -> str:
+    for text in (existing_project_text, working_context_text):
+        value = yaml_value(text, "description")
+        if value:
+            return value
+    return f"Codex Project context for {title}."
 
-vcs:
-  type: "git"
-  primaryRemoteHash: {yaml_string(remote_hash)}
-  primaryRemoteDisplay: {yaml_string(remote_display_value)}
-  currentBranch: {yaml_string(branch)}
 
-context:
-  localContextPath: ".codex-context"
-  workingContextPath: ".codex-context/working-context.md"
-  decisionsPath: ".codex-context/decisions"
-  sessionsPath: ".codex-context/sessions"
-
-status:
-  lifecycle: {yaml_string(status)}
-  sensitivity: {yaml_string(sensitivity)}
-  lastSeenAt: {yaml_string(updated)}
-"""
+def render_local_project_yaml(
+    *,
+    project_id_value: str,
+    title: str,
+    description: str,
+    created_at: str,
+    updated_at: str,
+) -> str:
+    return "\n".join([
+        f"projectId: {yaml_string(project_id_value)}",
+        f"title: {yaml_string(title)}",
+        f"description: {yaml_string(description)}",
+        f"createdAt: {created_at}",
+        f"updatedAt: {updated_at}",
+        "",
+    ])
 
 
 def read_jsonl(path: Path, result: Result) -> list[dict[str, object]]:
@@ -905,57 +1049,113 @@ def write_registry_record(index_path: Path, record: dict[str, object], write: bo
 def register_project(args: argparse.Namespace) -> Result:
     target = expand(args.target)
     repo_root = expand(args.repo_root)
-    project_file = repo_root / Path(args.project_file.replace("\\", "/"))
     now = now_iso()
     result = Result()
 
     for rel in GLOBAL_CONTEXT_DIRS:
         ensure_dir(target / rel, args.write, result)
-    write_text(target / "projects" / "index.jsonl", "", args.write, result)
+    registry_path = target / "projects" / "index.jsonl"
+    write_text(registry_path, "", args.write, result)
     write_text(target / "README.md", global_readme(), args.write, result)
     write_text(target / "working-context.md", global_working_context(), args.write, result)
 
-    existing_text = project_file.read_text(encoding="utf-8", errors="replace") if project_file.exists() else ""
+    local_project_path = repo_root / ".codex-context" / "project.yaml"
+    existing_local_project_text = ""
+    if local_project_path.exists():
+        existing_local_project_text = local_project_path.read_text(encoding="utf-8", errors="replace")
+    local_project_id = yaml_value(existing_local_project_text, "projectId")
     remote = git_value(repo_root, "config", "--get", "remote.origin.url")
     display = remote_display(remote)
-    remote_hash = f"sha256:{sha256_text(display or remote)}" if remote else ""
-    branch = git_value(repo_root, "rev-parse", "--abbrev-ref", "HEAD")
-    title = project_title(repo_root, args.title, yaml_value(existing_text, "title"))
-    created = yaml_value(existing_text, "created") or now
-    project_id = id_from_existing_or_remote(yaml_value(existing_text, "projectId"), "prj", display or remote)
-    workspace_id_value = workspace_id(yaml_value(existing_text, "workspaceId"))
-    repo_id = id_from_existing_or_remote(yaml_value(existing_text, "repoId"), "repo", display or remote)
+    remote_identity = display or remote
+    repo_id_from_remote = f"repo_{short_hash(remote_identity)}" if remote_identity else ""
+    records = read_jsonl(registry_path, result)
+    selected_record, project_reason, repo_record_count = select_project_record(
+        records,
+        repo_root,
+        repo_id_from_remote,
+        local_project_id,
+    )
+    title = project_title(repo_root, args.title, str(selected_record.get("title") or "") if selected_record else "")
+    project_id_value = str(selected_record.get("projectId") or "") if selected_record else ""
+    if not project_id_value and local_project_id and project_reason != "new-project-local-conflict":
+        project_id_value = local_project_id
+    if not project_id_value:
+        project_id_value = project_id(title, now)
+    workspace_id_value = workspace_id(str(selected_record.get("workspaceId") or "") if selected_record else "")
+    repo_id = repo_id_from_remote or repo_id_from_remote_or_record("", selected_record)
     status = args.status
     sensitivity = args.sensitivity
+    project_context_path = target / "projects" / project_id_value
+    working_context_path = project_context_path / "working-context.md"
+    sessions_path = project_context_path / "sessions"
+    decisions_path = project_context_path / "decisions"
+    local_seed_path = repo_root / ".codex-context" / "working-context.md"
 
-    project_text = render_project_yml(
+    ensure_dir(project_context_path, args.write, result)
+    ensure_dir(sessions_path, args.write, result)
+    ensure_dir(decisions_path, args.write, result)
+
+    if working_context_path.exists():
+        existing_text = working_context_path.read_text(encoding="utf-8", errors="replace")
+    elif local_seed_path.exists():
+        existing_text = local_seed_path.read_text(encoding="utf-8", errors="replace")
+        result.add("seed", f"{local_seed_path} -> {working_context_path}")
+    else:
+        existing_text = ""
+
+    working_context_text = update_working_context_identity(
+        existing_text=existing_text,
         title=title,
-        project_id=project_id,
-        workspace_id_value=workspace_id_value,
-        repo_id=repo_id,
-        remote_hash=remote_hash,
-        remote_display_value=display,
-        branch=branch,
-        status=status,
-        sensitivity=sensitivity,
-        created=created,
+        project_id=project_id_value,
         updated=now,
     )
-    write_text(project_file, project_text, args.write, result, overwrite=True)
+    write_text(working_context_path, working_context_text, args.write, result, overwrite=True)
+
+    keep_created_at = local_project_id == project_id_value
+    local_project_text = render_local_project_yaml(
+        project_id_value=project_id_value,
+        title=title,
+        description=project_description(
+            existing_project_text=existing_local_project_text,
+            working_context_text=working_context_text,
+            title=title,
+        ),
+        created_at=(yaml_value(existing_local_project_text, "createdAt") if keep_created_at else "") or now,
+        updated_at=now,
+    )
+    ensure_dir(local_project_path.parent, args.write, result)
+    write_text(local_project_path, local_project_text, args.write, result, overwrite=True)
+
+    if project_reason == "new-project-local-conflict":
+        result.warn(
+            f"creating a new projectId because local project.yaml projectId {local_project_id} "
+            "is already registered to an existing root or multiple registry records"
+        )
+    elif project_reason == "new-project" and repo_record_count:
+        result.warn(
+            f"creating a new projectId for repoId {repo_id}; "
+            "existing registry root still exists or multiple project candidates matched"
+        )
+    elif project_reason == "moved-root":
+        result.add("reuse-workspace", f"{workspace_id_value} (folder move detected)")
+    elif project_reason == "same-root":
+        result.add("reuse-workspace", f"{workspace_id_value} (same root)")
 
     registry_record = {
         "workspaceId": workspace_id_value,
-        "projectId": project_id,
+        "projectId": project_id_value,
         "repoId": repo_id,
         "title": title,
         "currentRoot": repo_root.as_posix(),
-        "localContextPath": (repo_root / ".codex-context").as_posix(),
-        "projectFilePath": project_file.as_posix(),
+        "projectContextPath": project_context_path.as_posix(),
+        "workingContextPath": working_context_path.as_posix(),
+        "sessionsPath": sessions_path.as_posix(),
+        "decisionsPath": decisions_path.as_posix(),
         "lastSeenAt": now,
         "status": status,
         "sensitivity": sensitivity,
     }
-    write_registry_record(target / "projects" / "index.jsonl", registry_record, args.write, result)
+    write_registry_record(registry_path, registry_record, args.write, result)
     return result
 
 
@@ -973,7 +1173,7 @@ This store is intended to be private.
 - `decisions/`: accepted global or user-level decisions.
 - `candidates/`: useful context that is not accepted as a decision yet.
 - `projects/index.jsonl`: registry of local Codex project workspaces.
-- `projects/<workspaceId>/`: optional per-workspace registry metadata.
+- `projects/<projectId>/`: private project context folder with `working-context.md`, `sessions/`, and `decisions/`.
 - `patterns/`: reusable cross-project patterns.
 - `skill-candidates/`: candidates for reusable Skills or Plugins.
 - `agents-candidates/`: candidates for global or repository AGENTS.md guidance.
@@ -1013,7 +1213,7 @@ This file is the lightweight dashboard for user-global Codex context.
 
 - Global Codex context is stored in `~/.codex-context`.
 - Generated context is kept separate from Codex configuration in `~/.codex`.
-- Project workspaces are tracked in `projects/index.jsonl` by stable workspace IDs.
+- Project working contexts are stored in `projects/<projectId>/`; Codex project folders are tracked in `projects/index.jsonl`.
 - Repositories should load selected global context read-only by default.
 - Repository snapshots should go under `.local/codex-context/global-context/` unless explicitly requested elsewhere.
 - Snapshot global context is historical reference, not an override for repository rules or current user instructions.
@@ -1032,6 +1232,9 @@ This file is the lightweight dashboard for user-global Codex context.
 ## Key Files
 
 - `projects/index.jsonl`
+- `projects/<projectId>/working-context.md`
+- `projects/<projectId>/sessions/`
+- `projects/<projectId>/decisions/`
 - `decisions/`
 - `candidates/`
 - `patterns/`
@@ -1422,7 +1625,6 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--report-dest", default=".local/codex-context/freshness-reviews")
     audit.add_argument("--max-items", type=int, default=50)
     audit.add_argument("--working-context-days", type=int, default=30)
-    audit.add_argument("--project-days", type=int, default=30)
     audit.add_argument("--session-days", type=int, default=90)
     audit.add_argument("--session-pending-days", type=int, default=14)
     audit.add_argument("--decision-days", type=int, default=180)
@@ -1470,7 +1672,6 @@ def build_parser() -> argparse.ArgumentParser:
     register = sub.add_parser("register-project", help="register this repository in ~/.codex-context")
     register.add_argument("--target", default="~/.codex-context")
     register.add_argument("--repo-root", default=".")
-    register.add_argument("--project-file", default=".codex-context/project.yml")
     register.add_argument("--title")
     register.add_argument("--status", choices=["active", "inactive", "archived"], default="active")
     register.add_argument("--sensitivity", choices=["private", "internal", "public"], default="private")

@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
   "version": "0.1.0",
-  "description": "Preserve, resume, register, load, audit, distill, and recover Codex working context, session notes, decisions, local session history, project registry metadata, and user-global context across chats and repositories.",
+  "description": "Preserve, resume, register, migrate, load, audit, distill, and recover Codex working context, session notes, decisions, local session history, project registry metadata, and user-global context across chats and repositories.",
   "author": {
     "name": "Tuckn"
   },
@@ -14,6 +14,7 @@
     "session-logs",
     "session-notes",
     "decisions",
+    "migration",
     "freshness",
     "distillation",
     "skills"
@@ -22,7 +23,7 @@
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Maintain and resume working context, project registry metadata, session notes, decisions, and global Codex context",
-    "longDescription": "A Codex plugin that groups context engineering skills and scripts for repository project registration, working context, session notes, session resume, session distillation candidates and finalization, decision records, decision review, local Codex session-log extraction, read-only global context loading, freshness audit, and explicit snapshot import or promotion through ~/.codex-context.",
+    "longDescription": "A Codex plugin that groups context engineering skills and scripts for repository project registration, legacy local-context migration, working context, session notes, session resume, session distillation candidates and finalization, decision records, decision review, local Codex session-log extraction, read-only global context loading, freshness audit, and explicit snapshot import or promotion through ~/.codex-context.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -37,6 +38,7 @@
       "Audit context freshness before relying on previous decisions",
       "Load selected global Codex context for this task",
       "Register this repository in the global Codex context registry",
+      "Move legacy local Codex context into the global project context folder",
       "Update the repository working context",
       "Promote this session's reusable learning globally"
     ],

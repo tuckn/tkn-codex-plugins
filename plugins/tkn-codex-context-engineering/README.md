@@ -42,20 +42,23 @@ Included Skills are grouped by the role they play in the context lifecycle.
 ### Project Setup And Live Context
 
 - `register-project-context`: Registers or refreshes a repository's Codex project
-  identity and connects it to the user-global project registry.
-- `maintain-working-context`: Maintains `.codex-context/working-context.md` as a
-  lightweight dashboard for active repository context.
+  identity with a small local `.codex-context/project.yaml` marker and the
+  private user-global project registry.
+- `migrate-local-project-context`: Moves legacy repo-local `.codex-context`
+  working context, sessions, and decisions into the private project context folder.
+- `maintain-working-context`: Maintains `~/.codex-context/projects/<projectId>/working-context.md`
+  as a lightweight dashboard for active project context.
 
 ### Active Work Records And Resume Flow
 
-- `maintain-session-note`: Creates or updates concise `.codex-context/sessions`
-  notes for non-trivial work, handoffs, and resumable tasks.
+- `maintain-session-note`: Creates or updates concise project `sessions/` notes
+  for non-trivial work, handoffs, and resumable tasks.
 - `resume-session`: Continues an existing session note in a new chat instead of
   creating a duplicate session record.
 
 ### Durable Decisions And Review
 
-- `record-decision`: Writes durable decision records under `.codex-context/decisions`
+- `record-decision`: Writes durable decision records under project `decisions/`
   for choices that should outlive the current chat.
 - `review-decisions`: Reviews decision records for repository document updates,
   working-context changes, and global-context promotion candidates.
@@ -71,7 +74,7 @@ Included Skills are grouped by the role they play in the context lifecycle.
 
 - `import-global-context`: Loads selected user-global Codex context into the current
   task, preferably read-only, with snapshots only on explicit request.
-- `promote-global-context`: Promotes reusable lessons from repo-local context into
+- `promote-global-context`: Promotes reusable lessons from project context into
   the private user-global context store.
 
 ### Context Governance And Raw Idea Capture
@@ -83,10 +86,12 @@ Included Skills are grouped by the role they play in the context lifecycle.
 
 ## Local And Global Context
 
-The plugin treats repo-local context as the project source of truth and user-global context as a
-private reuse layer.
+The plugin keeps a small repo-local project marker, while private project context lives in the
+user-global store.
 
-- Repo-local context lives under `.codex-context/` in the target repository.
+- The local marker is `.codex-context/project.yaml`; it contains `projectId`,
+  `title`, `description`, `createdAt`, and `updatedAt`.
+- Project context lives under `~/.codex-context/projects/<projectId>/`.
 - User-global context lives under `~/.codex-context`.
 - Global context loading should be read-only by default.
 - Snapshot imports and global promotions should happen only when explicitly requested.

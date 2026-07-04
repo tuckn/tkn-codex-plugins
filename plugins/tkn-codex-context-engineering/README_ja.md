@@ -42,20 +42,23 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 ### プロジェクト登録と現在の状況維持
 
 - `register-project-context`: repository の Codex project identity を登録または更新し、
-  user-global project registry と接続します。
-- `maintain-working-context`: `.codex-context/working-context.md` を active repository
-  context の lightweight dashboard として保守します。
+  小さな local marker `.codex-context/project.yaml` と private な user-global
+  project registry に保存します。
+- `migrate-local-project-context`: legacy な repo-local `.codex-context` の
+  working context、sessions、decisions を private project context folder に移動します。
+- `maintain-working-context`: `~/.codex-context/projects/<projectId>/working-context.md` を
+  active project context の lightweight dashboard として保守します。
 
 ### 作業記録と再開
 
-- `maintain-session-note`: 非自明な作業、handoff、resumable task のために
-  `.codex-context/sessions` の簡潔な note を作成または更新します。
+- `maintain-session-note`: 非自明な作業、handoff、resumable task のために project
+  `sessions/` の簡潔な note を作成または更新します。
 - `resume-session`: 新しい session record を重複作成せず、既存の session note を新しい chat
   で継続します。
 
 ### 長く残す判断と見直し
 
-- `record-decision`: 現在の chat を超えて残すべき判断を `.codex-context/decisions` 配下の
+- `record-decision`: 現在の chat を超えて残すべき判断を project `decisions/` 配下の
   durable decision record として記録します。
 - `review-decisions`: decision records を review し、repository document updates、
   working-context changes、global-context promotion candidates を洗い出します。
@@ -71,7 +74,7 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 
 - `import-global-context`: 選択した user-global Codex context を現在の task に読み込みます。
   既定では read-only で扱い、snapshot 作成は明示依頼時だけ行います。
-- `promote-global-context`: repo-local context から再利用可能な学びを抽出し、private な
+- `promote-global-context`: project context から再利用可能な学びを抽出し、private な
   user-global context store に promote します。
 
 ### Context の鮮度管理と思考メモの整理
@@ -83,10 +86,12 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 
 ## Local context と Global context
 
-この plugin は、repo-local context を project の source of truth、user-global context を private
-な reuse layer として扱います。
+この plugin は、repo-local には小さな project marker だけを置き、private な project context は
+user-global store に置きます。
 
-- Repo-local context は対象 repository の `.codex-context/` に置きます。
+- Local marker は `.codex-context/project.yaml` です。`projectId`、`title`、
+  `description`、`createdAt`、`updatedAt` だけを持ちます。
+- Project context は `~/.codex-context/projects/<projectId>/` に置きます。
 - User-global context は `~/.codex-context` に置きます。
 - Global context の読み込みは、既定では read-only にします。
 - Snapshot import や global promotion は、明示的に依頼された場合だけ行います。

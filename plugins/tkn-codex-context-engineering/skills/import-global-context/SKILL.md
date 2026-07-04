@@ -19,7 +19,7 @@ This store is private historical context. It does not override current user inst
 
 ## Default Workflow
 
-1. Check repository instructions and `.codex-context/working-context.md` when relevant.
+1. Check repository instructions and project `working-context.md` under `~/.codex-context/projects/<projectId>/` when relevant.
 2. Resolve this skill's plugin root and use `../../scripts/context_bridge/load_global_context.py`.
 3. Run read-only load to inspect relevant global context.
 4. Read only specific referenced files when the current task needs them.

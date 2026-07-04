@@ -1,26 +1,26 @@
 ---
 name: review-decisions
-description: .codex-context/decisions を Frontmatter metadata と本文で review し、durable repository documents への updates、global context 候補、promotionStatus 更新案を提案または適用する。decision 棚卸し、documented すべき decisions 発見、global context 候補抽出、accepted decision records からの repository guidance 更新依頼で使う。
+description: ~/.codex-context/projects/<projectId>/decisions を Frontmatter metadata と本文で review し、durable repository documents への updates、global context 候補、promotionStatus 更新案を提案または適用する。decision 棚卸し、documented すべき decisions 発見、global context 候補抽出、accepted decision records からの repository guidance 更新依頼で使う。
 ---
 
 # Review Decisions
 
 蓄積した decision records を maintained project documentation に反映するために、この skill を使う。
 
-目的は、`.codex-context/decisions` が isolated archive になることを防ぐことだ。Accepted decisions は、future humans と Codex が実際に読む durable documents に定期的に反映するべきだ。
+目的は、project `decisions/` が isolated archive になることを防ぐことだ。Accepted decisions は、future humans と Codex が実際に読む durable documents に定期的に反映するべきだ。
 
 ## Inputs
 
 Typical inputs:
 
-- `.codex-context/decisions/DR-*.md`
-- `.codex-context/working-context.md`
+- `~/.codex-context/projects/<projectId>/decisions/DR-*.md`
+- `~/.codex-context/projects/<projectId>/working-context.md`
 - `AGENTS.md`
 - `README.md`
 - Specs、design docs、operation docs、plans、その他 durable repository documents。
 - 必要な場合のみ relevant session notes。
 
-`.codex-context/` 全体を盲目的に読まない。
+Project context folder 全体を盲目的に読まない。
 
 decision record の Frontmatter を一次 index として扱う。
 
@@ -42,11 +42,11 @@ decision record の Frontmatter を一次 index として扱う。
 
 1. repository guidance の事前確認。
    - `AGENTS.md`
-   - `.codex-context/working-context.md` が存在し、関連する場合
+   - project `working-context.md` が存在し、関連する場合
    - `README.md` が存在し、関連する場合
    - ユーザーが指定した specs または docs
 2. decision record filenames の列挙。
-   - `.codex-context/decisions/DR-*.md`
+   - project `decisions/DR-*.md`
 3. decision Frontmatter index の作成。
    - `status`
    - `scope`
@@ -66,12 +66,12 @@ decision record の Frontmatter を一次 index として扱う。
    - `AGENTS.md` の更新対象
    - `README.md` の更新対象
    - spec/design/operation doc の更新対象
-   - `.codex-context/working-context.md` の更新対象
+   - project `working-context.md` の更新対象
    - reusable skill または cross-repo template の更新対象
    - global context candidate
    - global context promoted already
    - `promotionStatus` / `promotedTo` metadata 更新候補
-   - `.codex-context/decisions` のみに残す対象
+   - project `decisions/` のみに残す対象
    - obsolete、superseded、または user review が必要な対象
 7. global context になり得る要素の抽出。
    - repo 固有情報を除いた reusable rule / preference / workflow / failed approach。

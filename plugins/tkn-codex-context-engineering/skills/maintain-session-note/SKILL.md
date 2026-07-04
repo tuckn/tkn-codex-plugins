@@ -1,6 +1,6 @@
 ---
 name: maintain-session-note
-description: 非自明な作業について .codex-context/sessions に簡潔な session note を作成または更新する。file changes、investigation、重要判断、multi-turn tasks、resumable work、handoff、compaction、または chat の記録依頼で使う。simple answers、trivial checks、future reference value のない短い会話では使わない。
+description: 非自明な作業について ~/.codex-context/projects/<projectId>/sessions に簡潔な session note を作成または更新する。file changes、investigation、重要判断、multi-turn tasks、resumable work、handoff、compaction、または chat の記録依頼で使う。simple answers、trivial checks、future reference value のない短い会話では使わない。
 ---
 
 # Maintain Session Note
@@ -13,13 +13,14 @@ description: 非自明な作業について .codex-context/sessions に簡潔な
 
 chat/thread ごとに 1 file を作成または更新する。
 
-`.codex-context/sessions/YYYYMMDDTHHMMSS<system-timezone-offset>-<task-purpose-slug>.md`
+`~/.codex-context/projects/<projectId>/sessions/YYYYMMDDTHHMMSS<system-timezone-offset>-<task-purpose-slug>.md`
 
 - OS/system clock の timestamp と timezone offset の利用。ただし repository instruction が別途ある場合はその優先。
 - task purpose から作る短い kebab-case English slug の利用。
 - 同じ chat/thread では同じ session note の継続更新。
 - ユーザーが session note path を指定した場合、その file だけの読み込みと更新。
-- `.codex-context/working-context.md` が存在し、非自明な task に関連する current repository truth を含む可能性がある場合の確認。
+- `~/.codex-context/projects/index.jsonl` から project context folder を解決する。未登録の場合は `register-project-context` を使う。
+- project `working-context.md` が存在し、非自明な task に関連する current project truth を含む可能性がある場合の確認。
 - session note の生成日時が不明な既存 note を更新する場合、filename の timestamp を `date` と `sessionId` に使う。
 
 ## When to create
@@ -30,7 +31,7 @@ chat/thread ごとに 1 file を作成または更新する。
 - file の作成、移動、編集、review の可能性。
 - investigation、analysis、classification、design、judgment の関与。
 - 複数 turn にまたがる可能性、または resumable である必要。
-- 後で `.codex-context/decisions` へ promote する可能性がある decision。
+- 後で project `decisions/` へ promote する可能性がある decision。
 - ユーザーによる chat 記録の明示依頼。
 - handoff、context compaction、task switching の可能性。
 
@@ -100,7 +101,7 @@ sessionId: YYYYMMDDTHHMMSS<system-timezone-offset>
 - `generator`: 必ず `Codex`。
 - `status`: chat/thread の作業状態。`in-progress`、`blocked`、`waiting-for-user`、`done` のいずれかを使う。
 - `distillationStatus`: raw session note から silver context への反映状態。`pending`、`partial`、`distilled`、`no-action` のいずれかを使う。
-- `distilledTo`: 反映先の repo-relative paths。未反映なら `[]`。`.codex-context/working-context.md`、`.codex-context/decisions/DR-*.md` などを列挙する。
+- `distilledTo`: 反映先の paths。未反映なら `[]`。`../working-context.md`、`../decisions/DR-*.md` など同じ project context folder 内の path を優先する。
 - `date`: session note の生成日時。既存 note で生成日時が不明な場合、filename の timestamp を ISO 8601 形式に変換して使う。
 - `updated`: session note の内容を最後に更新した日時。Skill が本文または Frontmatter を更新したら必ず更新する。
 - `sessionId`: filename 先頭の `YYYYMMDDTHHMMSS<system-timezone-offset>`。Vault の file-management metadata として `updated` の下に置く。
@@ -115,7 +116,7 @@ sessionId: YYYYMMDDTHHMMSS<system-timezone-offset>
 - `Current state`: 現在の作業状態。
 - `Working context`: 関連する docs、files、searches、assumptions。paths と短い summary の利用。
 - `Changed files`: created、edited、moved、proposed files。
-- `Important decisions`: `.codex-context/decisions` の candidates を含む decisions。project、product、solution、design、workflow、operation、documentation、repository decisions を含む。
+- `Important decisions`: project `decisions/` の candidates を含む decisions。project、product、solution、design、workflow、operation、documentation、repository decisions を含む。
 - `What worked`: 再利用すべき successful approaches、commands、patterns、prompts、checks。
 - `Failed approaches`: 重要な negative knowledge。
 - `Open issues`: 未解決の questions、blockers、risks。
@@ -149,7 +150,7 @@ meaningful checkpoints で session note を更新する。
 - handoff、compaction、long interruption 前。
 - completion 時。
 
-task が repository の durable current state を変える場合、`.codex-context/working-context.md` を更新するか、更新不要の理由を記録する。
+task が project の durable current state を変える場合、project `working-context.md` を更新するか、更新不要の理由を記録する。
 
 ## Safety and style
 
@@ -157,5 +158,5 @@ task が repository の durable current state を変える場合、`.codex-conte
 - secrets、credentials、tokens、private keys、full environment variables、large logs、不要な personal/customer data の記載禁止。
 - chronological logs より current state の優先。
 - resume のために `.codex-context/` 全体を読まないこと。user-specified session note または narrowly searched relevant files のみ。
-- `.codex-context/working-context.md` は dashboard として使い、detailed log として使わないこと。detail には session notes と decision records への link。
+- project `working-context.md` は dashboard として使い、detailed log として使わないこと。detail には session notes と decision records への link。
 - repository instruction が別途ない限り、body は日本語。Markdown headings、paths、commands、identifiers は native form の維持。

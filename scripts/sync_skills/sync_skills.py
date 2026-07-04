@@ -19,6 +19,7 @@ DEFAULT_SKILLS = [
     "import-global-context",
     "maintain-session-note",
     "maintain-working-context",
+    "migrate-local-project-context",
     "organize-brain-dump",
     "promote-global-context",
     "register-project-context",

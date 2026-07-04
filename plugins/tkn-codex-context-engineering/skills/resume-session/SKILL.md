@@ -1,20 +1,20 @@
 ---
 name: resume-session
-description: 新しい chat で既存の .codex-context/sessions session note を継続対象として指定し、その chat では新規 session note を作成せず指定 session note を更新する。resume、continue、継続、再開、引き継ぎ、session path/name 指定で使う。
+description: 新しい chat で既存の ~/.codex-context/projects/<projectId>/sessions session note を継続対象として指定し、その chat では新規 session note を作成せず指定 session note を更新する。resume、continue、継続、再開、引き継ぎ、session path/name 指定で使う。
 ---
 
 # Resume Session
 
 新しい chat で既存 session note の続きを行うために、この skill を使う。
 
-目的は、作業状態を別 session note に分散させず、指定された `.codex-context/sessions/*.md` をこの chat の canonical session note として継続更新することだ。
+目的は、作業状態を別 session note に分散させず、指定された project `sessions/*.md` をこの chat の canonical session note として継続更新することだ。
 
 ## Command shape
 
 ユーザーは次のように指定できる。
 
 ```text
-$resume-session .codex-context/sessions/YYYYMMDDTHHMMSS+0900-task.md
+$resume-session ~/.codex-context/projects/<projectId>/sessions/YYYYMMDDTHHMMSS+0900-task.md
 $resume-session YYYYMMDDTHHMMSS+0900-task
 $resume-session YYYYMMDDTHHMMSS+0900-task.md
 $resume-session
@@ -25,14 +25,14 @@ $resume-session
 ## Session resolution
 
 1. ユーザーが path を指定した場合、その file だけを読む。
-2. ユーザーが filename または basename を指定した場合、`.codex-context/sessions/` 直下の filename として解決する。
+2. ユーザーが filename または basename を指定した場合、`~/.codex-context/projects/index.jsonl` から current project context folder を解決し、その `sessions/` 直下の filename として解決する。
 3. `.md` が省略されている場合、`.md` を補って解決する。
-4. ユーザーが session file を指定しなかった場合、`.codex-context/sessions/*.md` のうち Frontmatter `updated` が最も新しい session note を選ぶ。
+4. ユーザーが session file を指定しなかった場合、current project `sessions/*.md` のうち Frontmatter `updated` が最も新しい session note を選ぶ。
 5. `updated` がない、Frontmatter が壊れている、または日時 parse ができない file は、fallback として filesystem mtime を使って並べる。
 6. 最新候補が複数あり一意に決められない場合だけ、候補を短く示してユーザーに確認する。
 7. 解決のためだけに session note の本文を全探索しない。未指定時に読むのは Frontmatter と file metadata だけにする。
 
-`.codex-context/sessions/` 全体を理解目的で読まない。読むのは指定 session note と、必要な場合の `.codex-context/working-context.md`、および指定 session note から明示的に参照された relevant files だけにする。
+Project `sessions/` 全体を理解目的で読まない。読むのは指定 session note と、必要な場合の project `working-context.md`、および指定 session note から明示的に参照された relevant files だけにする。
 
 ## Resume workflow
 
@@ -48,7 +48,7 @@ $resume-session
 7. 作業再開時点で、Frontmatter の `status` を `in-progress` にする。ただし user が閲覧のみを依頼している場合は変更しない。
 8. Skill が session note を更新したら、Frontmatter の `updated` を OS/system clock の timestamp に更新する。
 9. 再開した事実、現在の user intent、次の一手を既存 section に短く反映する。
-10. 重要な current truth が変わる場合だけ、`.codex-context/working-context.md` も更新する。
+10. 重要な current truth が変わる場合だけ、project `working-context.md` も更新する。
 
 ## What to update in the session note
 

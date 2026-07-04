@@ -1,6 +1,6 @@
 ---
 name: distill-session-context
-description: Distill a repo-local Codex session note into a short review candidate for reusable context and finalize the source session's distillation metadata after review. Use when the user asks to distill, summarize, extract reusable learning, turn a session note into context, prepare context candidates, review or close pending distillationStatus, update distilledTo, or create decision/working-context/Skill/AGENTS candidates from `.codex-context/sessions`.
+description: Distill a Codex Project session note from `~/.codex-context/projects/<projectId>/sessions` into a short review candidate for reusable context and finalize the source session's distillation metadata after review. Use when the user asks to distill, summarize, extract reusable learning, turn a session note into context, prepare context candidates, review or close pending distillationStatus, update distilledTo, or create decision/working-context/Skill/AGENTS candidates from project sessions.
 ---
 
 # Distill Session Context
@@ -12,8 +12,8 @@ Default to candidate generation. Do not mark the source session as distilled, up
 ## Workflow
 
 1. Identify the source session note.
-   - Prefer a user-specified `.codex-context/sessions/*.md` file.
-   - If none is specified, inspect `.codex-context/working-context.md` or ask for the intended session note when multiple candidates are plausible.
+   - Prefer a user-specified `~/.codex-context/projects/<projectId>/sessions/*.md` file.
+   - If none is specified, inspect project `working-context.md` or ask for the intended session note when multiple candidates are plausible.
 2. Optionally run `audit-context-freshness` first when the session is old or `distillationStatus` is pending/partial.
 3. Run a dry-run distillation to confirm the output path and extracted sections.
 4. Use `--write` only when a durable candidate file is useful.
@@ -26,7 +26,7 @@ Dry-run distillation:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
-  --session .codex-context/sessions/<session-note>.md \
+  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --dry-run
 ```
 
@@ -34,7 +34,7 @@ Write a candidate under ignored local work files:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
-  --session .codex-context/sessions/<session-note>.md \
+  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --write
 ```
 
@@ -44,7 +44,7 @@ Classify the candidate when the likely destination is already clear:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
-  --session .codex-context/sessions/<session-note>.md \
+  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --kind decision-candidate \
   --write
 ```
@@ -63,9 +63,9 @@ Finalize after reusable context was accepted into a durable destination:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
-  --session .codex-context/sessions/<session-note>.md \
+  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --status distilled \
-  --distilled-to .codex-context/decisions/DR-0001-example.md \
+  --distilled-to ~/.codex-context/projects/<projectId>/decisions/DR-0001-example.md \
   --write
 ```
 
@@ -73,7 +73,7 @@ Use `partial` when only some useful content was accepted:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
-  --session .codex-context/sessions/<session-note>.md \
+  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --status partial \
   --distilled-to .local/codex-context/distilled-session-candidates/<candidate>.md \
   --write
@@ -83,7 +83,7 @@ Use `no-action` when review found nothing worth carrying forward:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
-  --session .codex-context/sessions/<session-note>.md \
+  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --status no-action \
   --write
 ```
@@ -105,5 +105,5 @@ The generated file is only a review candidate. Promotion is a separate step.
 - Treat session notes as raw or silver context, not current truth.
 - Do not copy full chat transcripts or full session notes into candidates.
 - Do not distill a session note that contains secrets, credentials, tokens, private keys, full env vars, large logs, or unnecessary personal/customer data.
-- Do not put private absolute paths in `--distilled-to`; use repo-relative paths, `.local/...`, `.codex-context/...`, or `~/.codex-context/...`.
+- Do not put private absolute paths in `--distilled-to`; use `.local/...`, project-context paths under `~/.codex-context/projects/<projectId>/...`, or other explicit `~/.codex-context/...` destinations.
 - Keep candidate output in `.local/` unless the user explicitly requests a repository artifact.
