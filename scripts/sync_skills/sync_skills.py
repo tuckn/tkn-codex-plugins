@@ -27,6 +27,7 @@ DEFAULT_SKILLS = [
     "review-codex-chats",
     "resume-session",
     "review-decisions",
+    "use-project-working-root",
 ]
 
 
