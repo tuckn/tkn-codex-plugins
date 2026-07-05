@@ -133,6 +133,24 @@ def yaml_value(text: str, key: str) -> str:
     return match.group(1).strip()
 
 
+def yaml_key_present(text: str, key: str) -> bool:
+    return re.search(rf"(?m)^\s*{re.escape(key)}:\s*", text) is not None
+
+
+def yaml_line_value(text: str, key: str) -> str:
+    match = re.search(rf"(?m)^\s*{re.escape(key)}:\s*(.*)$", text)
+    if not match:
+        return ""
+    raw = match.group(1).strip()
+    if raw == "[]":
+        return ""
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {"'", '"'}:
+        return raw[1:-1]
+    if "#" in raw:
+        raw = raw.split("#", 1)[0].strip()
+    return raw
+
+
 def source_ref(path: Path) -> str:
     cwd = Path.cwd().resolve()
     try:
@@ -988,12 +1006,12 @@ def update_working_context_identity(
     return f"{metadata}\n\n{existing_text}"
 
 
-def project_description(*, existing_project_text: str, working_context_text: str, title: str) -> str:
-    for text in (existing_project_text, working_context_text):
-        value = yaml_value(text, "description")
-        if value:
-            return value
-    return f"Codex Project context for {title}."
+def project_description(*, explicit_description: str | None, existing_project_text: str) -> str:
+    if explicit_description is not None:
+        return explicit_description
+    if yaml_key_present(existing_project_text, "description"):
+        return yaml_line_value(existing_project_text, "description")
+    return ""
 
 
 def render_local_project_yaml(
@@ -1116,9 +1134,8 @@ def register_project(args: argparse.Namespace) -> Result:
         project_id_value=project_id_value,
         title=title,
         description=project_description(
+            explicit_description=args.description,
             existing_project_text=existing_local_project_text,
-            working_context_text=working_context_text,
-            title=title,
         ),
         created_at=(yaml_value(existing_local_project_text, "createdAt") if keep_created_at else "") or now,
         updated_at=now,
@@ -1673,6 +1690,7 @@ def build_parser() -> argparse.ArgumentParser:
     register.add_argument("--target", default="~/.codex-context")
     register.add_argument("--repo-root", default=".")
     register.add_argument("--title")
+    register.add_argument("--description")
     register.add_argument("--status", choices=["active", "inactive", "archived"], default="active")
     register.add_argument("--sensitivity", choices=["private", "internal", "public"], default="private")
     register.add_argument("--dry-run", action="store_true")

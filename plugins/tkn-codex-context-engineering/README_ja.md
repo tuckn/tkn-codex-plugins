@@ -67,6 +67,8 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 
 - `extract-codex-sessions`: local Codex JSONL session logs から、themes、questions、
   decisions、outcomes、project history を抽出します。
+- `review-codex-chats`: `~/.codex/sessions` の local Codex session logs を review し、
+  `~/.codex-context/session-reviews` に月間 source review note を作成します。
 - `distill-session-context`: session note を短い reusable-context review candidate に
   distill し、review 後に distillation metadata を finalize します。
 

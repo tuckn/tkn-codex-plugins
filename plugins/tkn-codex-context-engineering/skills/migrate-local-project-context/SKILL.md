@@ -55,27 +55,46 @@ Do not infer the destination from folder name alone. Use `.codex-context/project
 2. Inspect `.codex-context/` narrowly:
    - list direct children;
    - count `sessions/*.md` and `decisions/*.md`;
-   - do not read every session or decision unless needed for collision handling.
-3. Use `register-project-context` first.
+   - read legacy session and decision notes enough to determine the earliest project context date.
+3. Determine the projectId date prefix before registration.
+   - Read the contents of notes under `.codex-context/sessions/` and `.codex-context/decisions/`; do not rely only on filenames or filesystem timestamps.
+   - Prefer Frontmatter dates such as `date`, `created`, `createdAt`, or `updated` when they represent note creation or the recorded decision/session date.
+   - If Frontmatter is missing, use a clear date in the note body; use the filename timestamp only as a fallback.
+   - Use the oldest reliable date from sessions and decisions as the `projectId` date prefix in `yyyyMMdd` form.
+   - Record which note supplied the oldest date in the migration plan.
+4. Seed or correct project identity before registration when needed.
+   - Check whether `~/.codex-context/projects/index.jsonl` already has a current-root record for this repository.
+   - If no local marker exists, create one with the oldest-note date prefix, repository slug, and a short random suffix, then run registration so the registry adopts that `projectId`.
+   - If a marker exists but no registry record exists, and its date prefix is newer than the oldest reliable session/decision date, update the marker to preserve the slug and short suffix while replacing only the date prefix.
+   - If a registry record already exists for the current root and its `projectId` date prefix is newer than the oldest reliable date, perform an identity rename instead of only editing the marker:
+     - preserve the existing slug, short suffix, `workspaceId`, and `repoId`;
+     - replace only the date prefix in `projectId`;
+     - move the private project context folder to the new projectId name;
+     - update registry `projectId`, `projectContextPath`, `workingContextPath`, `sessionsPath`, and `decisionsPath`;
+     - update `.codex-context/project.yaml` and destination `working-context.md` Frontmatter.
+   - Set marker `createdAt` to the oldest reliable note timestamp and `updatedAt` to the current timestamp.
+   - Preserve existing `title` and `description` when present.
+5. Use `register-project-context`.
    - Run dry-run.
    - If the user explicitly asked to migrate or move context, run write.
    - Confirm `.codex-context/project.yaml` exists after registration.
-4. Resolve `projectId` from `.codex-context/project.yaml`.
-5. Read `~/.codex-context/projects/index.jsonl` and find the matching record.
+6. Resolve `projectId` from `.codex-context/project.yaml`.
+7. Read `~/.codex-context/projects/index.jsonl` and find the matching record.
    - Prefer a record with the same `projectId` and current root.
    - Use `projectContextPath`, `workingContextPath`, `sessionsPath`, and `decisionsPath` from the record when present.
    - Stop if the matching record is missing or points outside `~/.codex-context/projects/<projectId>/`.
-6. Prepare a migration plan:
+8. Prepare a migration plan:
    - source paths;
    - destination paths;
    - files to move;
    - files that already exist at destination;
+   - oldest reliable note date and the resulting `projectId`;
    - source cleanup to perform after verification.
-7. Copy or move content only after the plan is clear.
+9. Copy or move content only after the plan is clear.
    - Prefer copy to destination, verify counts/content, then remove legacy source files.
    - For explicit "move" requests, cleanup is allowed after verification.
    - Keep `.codex-context/project.yaml`.
-8. Update project `working-context.md` or create a session note if the migration changes durable project state.
+10. Update project `working-context.md` or create a session note if the migration changes durable project state.
 
 ## Working Context Handling
 
@@ -94,6 +113,10 @@ Treat `working-context.md` as the riskiest file because it may already have been
 For `sessions/` and `decisions/`:
 
 - Move Markdown files into the corresponding destination folder.
+- Use their content during planning to set the project identity date:
+  - sessions and decisions are the authoritative evidence for when the project context began;
+  - choose the oldest reliable note timestamp across both folders;
+  - keep that date as the date prefix of `projectId`.
 - Preserve filenames when there is no collision.
 - If the destination has the same filename:
   - if content is identical, treat the destination as already migrated and remove the source during cleanup;
@@ -136,6 +159,8 @@ After verification:
 Before finishing, verify:
 
 - `.codex-context/project.yaml` exists and contains the expected `projectId`.
+- the `projectId` date prefix matches the oldest reliable date found in legacy `sessions/` and `decisions/` note content.
+- `.codex-context/project.yaml` `createdAt` reflects that oldest reliable note timestamp when a new marker was created or corrected during migration.
 - `~/.codex-context/projects/index.jsonl` has the matching registry record.
 - destination `working-context.md`, `sessions/`, and `decisions/` exist as expected.
 - migrated session and decision file counts match the plan.

@@ -67,6 +67,8 @@ Included Skills are grouped by the role they play in the context lifecycle.
 
 - `extract-codex-sessions`: Extracts themes, questions, decisions, outcomes, or
   project history from local Codex JSONL session logs.
+- `review-codex-chats`: Reviews local Codex session logs from `~/.codex/sessions`
+  into monthly source review notes under `~/.codex-context/session-reviews`.
 - `distill-session-context`: Distills session notes into short reusable-context review
   candidates and finalizes their distillation metadata after review.
 

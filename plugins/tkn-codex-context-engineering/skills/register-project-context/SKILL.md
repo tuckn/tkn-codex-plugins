@@ -1,6 +1,6 @@
 ---
 name: register-project-context
-description: Register or refresh a Codex Project folder by writing repo-local `.codex-context/project.yaml`, indexing it in the private `~/.codex-context/projects/index.jsonl` registry, and creating private project context under `~/.codex-context/projects/<projectId>/`. Use when the user explicitly wants to initialize, connect, move, rename, or update project context; registration is a readiness gate and does not trigger other Skills by itself.
+description: Register or refresh a Codex Project folder by writing repo-local `.codex-context/project.yaml`, indexing it in the private `~/.codex-context/projects/index.jsonl` registry, and creating private project context under the projectId-specific folder in `~/.codex-context/projects/`. Use when the user explicitly wants to initialize, connect, move, rename, or update project context; registration is a readiness gate and does not trigger other Skills by itself.
 ---
 
 # Register Project Context
@@ -47,16 +47,23 @@ Identity is split by privacy boundary:
 - `workspaceId`: this checkout or worktree on this machine. Stored only in the private global registry.
 - `repoId`: repository identity derived from git remote when possible. Stored only in the private global registry.
 
+In `.codex-context/project.yaml`, `description` describes the Codex Project folder itself. It is not the `working-context.md` dashboard description and must not be copied from working context Frontmatter by default.
+
 Do not create new working context, session notes, or decision records inside the Codex Project folder by default.
 
 ## Workflow
 
 1. Check repository instructions when relevant.
 2. Resolve this skill's plugin root and use `../../scripts/context_bridge/register_project_context.py`.
-3. Run dry-run first.
-4. Confirm the planned `~/.codex-context/projects/index.jsonl` update and `projects/<projectId>/` context folder are expected.
-5. Use `--write` only when the user asked to register or update the project context.
-6. If this changes managed Skill behavior or current repository truth, update the session note and working context.
+3. Decide marker metadata before write:
+   - use `--title` when the folder name is not the right display title;
+   - use `--description` only when a short Codex Project folder description is known;
+   - if the project is still blank or unclear, leave `description` empty rather than inventing one;
+   - ask the user before registration only when the request needs a meaningful title or description now.
+4. Run dry-run first.
+5. Confirm the planned `~/.codex-context/projects/index.jsonl` update and `projects/<projectId>/` context folder are expected.
+6. Use `--write` only when the user asked to register or update the project context.
+7. If this changes managed Skill behavior or current repository truth, update the session note and working context.
 
 Registration behavior:
 
@@ -68,6 +75,8 @@ Registration behavior:
 - If an old root still exists, or multiple matching candidates exist, create a new `projectId` and `workspaceId`.
 - Generate new `projectId` values as `yyyyMMdd_<slug>_<shortId>`, for example `20260704_tkn-codex-plugins_k92p7q1d`.
 - Create or update `.codex-context/project.yaml` with `projectId`, `title`, `description`, `createdAt`, and `updatedAt`.
+- Preserve an existing local `description`, including an intentional empty string, unless `--description` is provided.
+- Do not seed `.codex-context/project.yaml` `description` from `working-context.md`; when no marker description or `--description` is available, write `description: ""`.
 - Create `~/.codex-context/projects/<projectId>/working-context.md`, `sessions/`, and `decisions/`.
 - Store `workspaceId`, `repoId`, local root, project context paths, status, sensitivity, and `lastSeenAt` in `~/.codex-context/projects/index.jsonl`.
 
@@ -94,6 +103,7 @@ python3 <plugin-root>/scripts/context_bridge/register_project_context.py \
 Optional arguments:
 
 - `--title <name>`: display title. Defaults to the repository folder name.
+- `--description <text>`: short description of the Codex Project folder. Defaults to preserving the existing marker description or writing an empty string for new markers.
 - `--status active|inactive|archived`: workspace lifecycle. Defaults to `active`.
 - `--sensitivity private|internal|public`: context sensitivity. Defaults to `private`.
 - `--log <path>`: write the operation summary.
@@ -105,5 +115,6 @@ Optional arguments:
 - Keep real local absolute paths out of committed repository files.
 - Keep working context, session notes, decision records, `workspaceId`, `repoId`, and local root paths out of repo-local context files by default.
 - Keep `.codex-context/project.yaml` small; it is only a local/global project identity marker.
+- Keep marker `description` short and project-folder-oriented; detailed current truth belongs in private `working-context.md`.
 - Treat `~/.codex-context` as private; registry records and project context files may include real local paths and private project details.
 - Current user instructions, repository `AGENTS.md`, current files, and git state override imported or registered context.

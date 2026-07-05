@@ -24,6 +24,7 @@ DEFAULT_SKILLS = [
     "promote-global-context",
     "register-project-context",
     "record-decision",
+    "review-codex-chats",
     "resume-session",
     "review-decisions",
 ]

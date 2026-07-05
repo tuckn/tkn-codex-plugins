@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.1.0",
-  "description": "Preserve, resume, register, migrate, load, audit, distill, and recover Codex working context, session notes, decisions, local session history, project registry metadata, and user-global context across chats and repositories.",
+  "version": "0.3.0",
+  "description": "Register Codex projects, preserve project context, review local chat logs, and manage session notes, decisions, memos, global context, freshness, and distillation across chats and repositories.",
   "author": {
     "name": "Tuckn"
   },
@@ -11,19 +11,23 @@
   "keywords": [
     "codex",
     "context",
+    "project-registry",
     "session-logs",
     "session-notes",
     "decisions",
+    "memos",
+    "chat-review",
     "migration",
     "freshness",
     "distillation",
+    "global-context",
     "skills"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
-    "shortDescription": "Maintain and resume working context, project registry metadata, session notes, decisions, and global Codex context",
-    "longDescription": "A Codex plugin that groups context engineering skills and scripts for repository project registration, legacy local-context migration, working context, session notes, session resume, session distillation candidates and finalization, decision records, decision review, local Codex session-log extraction, read-only global context loading, freshness audit, and explicit snapshot import or promotion through ~/.codex-context.",
+    "shortDescription": "Register projects, maintain context, review Codex chats, and reuse private notes",
+    "longDescription": "A Codex plugin that groups context engineering skills and scripts for Codex project registration, legacy local-context migration, working context dashboards, session notes and resume, decision records and review, project memos, local Codex chat review, session-log extraction, distillation candidates and finalization, freshness audits, read-only global context loading, explicit snapshot import, and promotion through ~/.codex-context.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -31,16 +35,9 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Resume an existing session note",
-      "Distill a session note into reusable context candidates",
-      "Finalize a session note's distillation metadata after review",
-      "Extract and summarize a topic from local Codex session logs",
-      "Audit context freshness before relying on previous decisions",
-      "Load selected global Codex context for this task",
       "Register this repository in the global Codex context registry",
-      "Move legacy local Codex context into the global project context folder",
-      "Update the repository working context",
-      "Promote this session's reusable learning globally"
+      "Resume an existing project session note",
+      "Review last month's Codex chats"
     ],
     "brandColor": "#2563EB",
     "screenshots": []
