@@ -27,7 +27,7 @@ Use the bundled parser to summarize matching JSONL files before writing the revi
 ```powershell
 python plugins\tkn-codex-context-engineering\skills\review-codex-chats\scripts\parse_codex_chats.py `
   --month 2026-06 `
-  --output .local\review-codex-chats\2026-06-summary.json
+  --output "$env:TEMP\review-codex-chats\2026-06-summary.json"
 ```
 
 Useful options:
@@ -86,7 +86,7 @@ noteId: "<UUID>"
 ## Workflow
 
 1. Determine the review period.
-2. Run `parse_codex_chats.py` and write summary JSON under `.local/`.
+2. Run `parse_codex_chats.py` and write summary JSON under the OS temp directory.
 3. Read the summary JSON.
 4. Open only the specific raw `.jsonl` files needed to clarify unclear sessions.
 5. Write one review note under `~/.codex-context/session-reviews`.

@@ -1,6 +1,6 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Register Codex projects, choose and clean up runtime working roots, preserve project context, review local chat logs, and manage session notes, decisions, memos, global context, freshness, and distillation across chats and repositories.",
   "author": {
     "name": "Tuckn"

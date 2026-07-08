@@ -1,6 +1,6 @@
 ---
 name: distill-session-context
-description: Distill a Codex Project session note from `~/.codex-context/projects/<projectId>/sessions` or a user-specified explicit session note into a short review candidate for reusable context and finalize the source session's distillation metadata after review. Use when the user asks to distill, summarize, extract reusable learning, review or close pending distillationStatus, update distilledTo, or create decision/working-context/Skill/AGENTS candidates. Current-project resolution requires `.codex-context/project.yaml` to resolve in the private registry; marker creation alone is not a trigger.
+description: Distill a Codex Project session note from a projectId-specific sessions folder under `~/.codex-context/projects/` or a user-specified explicit session note into a short review candidate for reusable context and finalize the source session's distillation metadata after review. Use when the user asks to distill, summarize, extract reusable learning, review or close pending distillationStatus, update distilledTo, or create decision/working-context/Skill/AGENTS candidates. Current-project resolution requires `.codex-context/project.yaml` to resolve in the private registry; marker creation alone is not a trigger.
 ---
 
 # Distill Session Context
@@ -38,7 +38,7 @@ python <plugin-root>/scripts/context_bridge/distill_session_context.py \
   --dry-run
 ```
 
-Write a candidate under ignored local work files:
+Write a candidate under the private Codex working root for the current registered project:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
@@ -46,7 +46,7 @@ python <plugin-root>/scripts/context_bridge/distill_session_context.py \
   --write
 ```
 
-The default destination is `.local/codex-context/distilled-session-candidates/`.
+The default destination is `%USERPROFILE%\.codex-working\projects\<projectId>\context-bridge\distilled-session-candidates\`.
 
 Classify the candidate when the likely destination is already clear:
 
@@ -83,7 +83,7 @@ Use `partial` when only some useful content was accepted:
 python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
   --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
   --status partial \
-  --distilled-to .local/codex-context/distilled-session-candidates/<candidate>.md \
+  --distilled-to ~/.codex-working/projects/<projectId>/context-bridge/distilled-session-candidates/<candidate>.md \
   --write
 ```
 
@@ -113,5 +113,5 @@ The generated file is only a review candidate. Promotion is a separate step.
 - Treat session notes as raw or silver context, not current truth.
 - Do not copy full chat transcripts or full session notes into candidates.
 - Do not distill a session note that contains secrets, credentials, tokens, private keys, full env vars, large logs, or unnecessary personal/customer data.
-- Do not put private absolute paths in `--distilled-to`; use `.local/...`, project-context paths under `~/.codex-context/projects/<projectId>/...`, or other explicit `~/.codex-context/...` destinations.
-- Keep candidate output in `.local/` unless the user explicitly requests a repository artifact.
+- Do not put private absolute paths in `--distilled-to`; use private working-root paths under `~/.codex-working/projects/<projectId>/...`, project-context paths under `~/.codex-context/projects/<projectId>/...`, or other explicit `~/.codex-context/...` destinations.
+- Keep candidate output in the private Codex working root unless the user explicitly requests a repository artifact.

@@ -97,8 +97,8 @@ python3 <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
   --dry-run
 ```
 
-Use `--write` to save a freshness review report under
-`.local/codex-context/freshness-reviews/`.
+Use `--write` to save a freshness review report under the private Codex
+working root for the current registered project.
 
 Distill a session note into a review candidate:
 
@@ -108,8 +108,8 @@ python3 <plugin-root>/scripts/context_bridge/distill_session_context.py \
   --dry-run
 ```
 
-Use `--write` to save a candidate under
-`.local/codex-context/distilled-session-candidates/`.
+Use `--write` to save a candidate under the private Codex working root for
+the current registered project.
 
 Finalize a reviewed session distillation:
 
@@ -133,8 +133,10 @@ python3 <plugin-root>/scripts/context_bridge/import_context.py \
   --dry-run
 ```
 
-The snapshot default destination is `.local/codex-context/global-context/`. Use
-`--dest .codex-context/global-context` only when a repository snapshot is explicitly needed.
+The snapshot default destination is the private Codex working root:
+`%USERPROFILE%\.codex-working\projects\<projectId>\context-bridge\global-context\`.
+Use `--dest .codex-context/global-context` only when a repository snapshot is
+explicitly needed.
 
 Promote a candidate or decision to the global store:
 

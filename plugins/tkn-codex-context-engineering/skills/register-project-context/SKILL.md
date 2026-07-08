@@ -111,7 +111,7 @@ Optional arguments:
 ## Safety
 
 - Do not write to the real `~/.codex-context` unless the user explicitly asked for a write operation.
-- Use `.local/` fake stores for tests.
+- Use OS temp or the private Codex working root for fake stores in tests.
 - Keep real local absolute paths out of committed repository files.
 - Keep working context, session notes, decision records, `workspaceId`, `repoId`, and local root paths out of repo-local context files by default.
 - Keep `.codex-context/project.yaml` small; it is only a local/global project identity marker.

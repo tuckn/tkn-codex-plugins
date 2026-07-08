@@ -60,7 +60,7 @@ Use snapshot import only when the user explicitly asks to copy, write, import, o
 Default snapshot destination:
 
 ```text
-.local/codex-context/global-context/
+%USERPROFILE%\.codex-working\projects\<projectId>\context-bridge\global-context\
 ```
 
 Dry-run:
@@ -93,10 +93,10 @@ python3 <plugin-root>/scripts/context_bridge/import_context.py \
 
 ## Snapshot Contract
 
-The snapshot import command writes:
+The snapshot import command writes to the resolved private working root:
 
 ```text
-.local/codex-context/global-context/
+%USERPROFILE%\.codex-working\projects\<projectId>\context-bridge\global-context\
   README.md
   working-context.md
   decisions/
@@ -111,6 +111,6 @@ Snapshots are historical references. Validate them against current repository st
 
 - Do not blindly read all global context.
 - Do not write snapshots unless the user explicitly requested a write/import/snapshot.
-- Prefer `.local/` snapshots because `.local/` is ignored in this repository.
+- Prefer the private Codex working root for snapshots so this repository does not recreate `.local/`.
 - If using `.codex-context/global-context/`, treat it as historical reference and avoid committing private or stale context accidentally.
 - Stop if global context contains secrets, credentials, tokens, private keys, full env vars, large logs, or unnecessary personal/customer data.
