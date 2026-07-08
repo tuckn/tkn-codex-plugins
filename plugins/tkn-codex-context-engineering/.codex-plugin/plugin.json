@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.4.0",
-  "description": "Register Codex projects, choose runtime working roots, preserve project context, review local chat logs, and manage session notes, decisions, memos, global context, freshness, and distillation across chats and repositories.",
+  "version": "0.5.0",
+  "description": "Register Codex projects, choose and clean up runtime working roots, preserve project context, review local chat logs, and manage session notes, decisions, memos, global context, freshness, and distillation across chats and repositories.",
   "author": {
     "name": "Tuckn"
   },
@@ -19,7 +19,9 @@
     "chat-review",
     "migration",
     "runtime",
+    "runtime-cleanup",
     "working-root",
+    "local-runtime",
     "freshness",
     "distillation",
     "global-context",
@@ -29,7 +31,7 @@
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Register projects, choose working roots, maintain context, and reuse private notes",
-    "longDescription": "A Codex plugin that groups context engineering skills and scripts for Codex project registration, private runtime working-root selection, legacy local-context migration, working context dashboards, session notes and resume, decision records and review, project memos, local Codex chat review, session-log extraction, distillation candidates and finalization, freshness audits, read-only global context loading, explicit snapshot import, and promotion through ~/.codex-context.",
+    "longDescription": "A Codex plugin that groups context engineering skills and scripts for Codex project registration, private runtime working-root selection, legacy .local runtime cleanup, legacy local-context migration, working context dashboards, session notes and resume, decision records and review, project memos, local Codex chat review, session-log extraction, distillation candidates and finalization, freshness audits, read-only global context loading, explicit snapshot import, and promotion through ~/.codex-context.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -39,6 +41,7 @@
     "defaultPrompt": [
       "Register this repository in the global Codex context registry",
       "Use the right Codex working root before installing Python or Node dependencies",
+      "Clean up a legacy .local runtime folder",
       "Resume an existing project session note",
       "Review last month's Codex chats"
     ],

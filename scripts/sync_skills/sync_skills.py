@@ -14,6 +14,7 @@ from typing import Any
 
 DEFAULT_SKILLS = [
     "audit-context-freshness",
+    "cleanup-local-runtime",
     "distill-session-context",
     "extract-codex-sessions",
     "import-global-context",

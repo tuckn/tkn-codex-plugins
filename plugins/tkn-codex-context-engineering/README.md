@@ -49,6 +49,9 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `use-project-working-root`: Chooses whether Python/Node runtime files belong in
   the project folder or in the private `.codex-working` project root, then records
   a short project `AGENTS.md` reminder when the private root is used.
+- `cleanup-local-runtime`: Cleans up legacy `.local` runtime folders by moving
+  reusable scripts and small durable inputs, recreating `.venv` or `node_modules`
+  through normal package managers, and deleting caches or generated intermediates.
 - `maintain-working-context`: Maintains `~/.codex-context/projects/<projectId>/working-context.md`
   as a lightweight dashboard for active project context.
 
@@ -117,7 +120,8 @@ Project registration is a readiness gate, not an automatic trigger.
   migrate, move, or update project context.
 - Entry Skills such as `register-project-context` and `migrate-local-project-context` may run before
   registration because their purpose is to create or repair that readiness gate.
-- Runtime setup Skills such as `use-project-working-root` may use the project folder itself only
-  when it is clearly a software Git repository outside sync folders with existing environment
-  definitions and ignore rules. Otherwise they require registration and use the private
-  `.codex-working` project root.
+- Runtime setup and cleanup Skills such as `use-project-working-root` and
+  `cleanup-local-runtime` may use the project folder itself only when it is clearly a software
+  Git repository outside sync folders with existing environment definitions and ignore rules, or
+  when the user explicitly chooses project-local runtime cleanup. Otherwise they require
+  registration and use the private `.codex-working` project root.
