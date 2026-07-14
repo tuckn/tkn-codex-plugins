@@ -58,13 +58,13 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `init-project-context`:
   - Initializes or refreshes a repository's Codex project identity with a small local
     `.tkn/codex-context.yaml` marker and the private user-global project registry.
-- `maintain-working-context`:
-  - Maintains `~/.tkn/codex-context/state/<projectId>/working-context.md` as a lightweight dashboard
-    for active project context.
+- `write-current-working-context`:
+  - Creates or updates `~/.tkn/codex-context/state/<projectId>/working-context.md` as a lightweight
+    dashboard of the project's current state.
 
 ### Active Work Records And Resume Flow
 
-- `maintain-session-note`:
+- `write-session-note`:
   - Creates or updates concise project `sessions/` notes for non-trivial work, handoffs, and
     resumable tasks.
 - `resume-session`:
@@ -80,14 +80,14 @@ Included Skills are grouped by the role they play in the context lifecycle.
   - Reviews decision records for repository document updates, working-context changes, and
     reusable guidance candidates.
 
-### Past-Session Recovery And Distillation
+### All-Project Chat History Search, Review, And Distillation
 
-- `extract-codex-sessions`:
-  - Extracts themes, questions, decisions, outcomes, or project history from local Codex JSONL
-    session logs.
-- `review-codex-chats`:
-  - Reviews local Codex session logs from `~/.codex/sessions` into monthly source review notes under
-    `~/.tkn/codex-context/data/session-reviews`.
+- `search-all-codex-chats`:
+  - Searches Codex JSONL chat history across all projects on the current computer and uses matched
+    evidence to answer questions about past discussions, decisions, and outcomes.
+- `review-all-codex-chats`:
+  - Reviews Codex chat history across all projects on the current computer from `~/.codex/sessions`
+    into monthly source review notes under `~/.tkn/codex-context/data/session-reviews`.
 - `distill-session-context`:
   - Distills session notes into short reusable-context review candidates and finalizes their
     distillation metadata after review.

@@ -1,11 +1,11 @@
 ---
-name: review-codex-chats
-description: Review local Codex JSONL chat logs from `~/.codex/sessions` and create monthly Codex chat source review notes under `~/.tkn/codex-context/data/session-reviews`. Use when the user asks for a Codex chat review, monthly Codex transcript review, AI collaboration review, or source review of local Codex sessions. This skill summarizes sessions into Fact Extract, Insight Synthesis, and Materialization Candidates without creating decisions, session notes, working-context updates, Skills, or actions.
+name: review-all-codex-chats
+description: Review Codex JSONL chat logs across all projects on the current computer from `~/.codex/sessions` and create monthly Codex chat source review notes under `~/.tkn/codex-context/data/session-reviews`. Use when the user asks for an all-project Codex chat review, monthly Codex transcript review, AI collaboration review, or source review of the Codex chat history stored on this computer. This skill summarizes sessions into Fact Extract, Insight Synthesis, and Materialization Candidates without creating decisions, session notes, working-context updates, Skills, or actions.
 ---
 
-# Review Codex Chats
+# Review All Codex Chats
 
-Use this skill to review Codex chat transcripts as a source record of AI collaboration.
+Use this skill to review Codex chat transcripts across all projects on the current computer as a source record of AI collaboration.
 
 The source root is fixed to `~/.codex/sessions`. Do not use environment files, repository-local source-root config, or alternate archive roots for normal use.
 
@@ -25,9 +25,9 @@ Handle Codex chat source review only.
 Use the bundled parser to summarize matching JSONL files before writing the review note.
 
 ```powershell
-python plugins\tkn-codex-context-engineering\skills\review-codex-chats\scripts\parse_codex_chats.py `
+python plugins\tkn-codex-context-engineering\skills\review-all-codex-chats\scripts\parse_codex_chats.py `
   --month 2026-06 `
-  --output "$env:TEMP\review-codex-chats\2026-06-summary.json"
+  --output "$env:TEMP\review-all-codex-chats\2026-06-summary.json"
 ```
 
 Useful options:

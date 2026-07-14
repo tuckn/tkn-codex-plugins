@@ -1,11 +1,11 @@
 ---
-name: maintain-working-context
+name: write-current-working-context
 description: 登録済み current project の projectId-specific working-context.md を lightweight Codex Project dashboard として作成、確認、更新する。ユーザー意図が非自明な作業開始、active work changes、important decision changes、または working context 更新依頼に一致し、`.tkn/codex-context.yaml` が private registry で現在 workspace に解決できる場合に使う。marker 生成だけでは使わない。
 ---
 
-# Maintain Working Context
+# Write Current Working Context
 
-`~/.tkn/codex-context/state/<projectId>/working-context.md` を Codex Project の lightweight current-truth dashboard として有用に保つために、この skill を使う。
+`~/.tkn/codex-context/state/<projectId>/working-context.md` を Codex Project の lightweight current-truth dashboard として作成、確認、更新するために、この skill を使う。
 
 目的は、future human または Codex session がすべての session notes や decision records を読まずに、現在の repository state を素早く理解できるようにすることだ。
 
@@ -83,7 +83,7 @@ Project current truth が変わる場合、特に次の場合に project `workin
 3. 直接関連する session notes、decisions、plans、specs だけの確認。
 4. chronological log ではなく、concise current state として working context を更新。
 5. detail の重複より path 参照の優先。
-6. `maintain-session-note` を使う場合、session note も更新し、working context 変更有無を記録。
+6. `write-session-note` を使う場合、session note も更新し、working context 変更有無を記録。
 
 ## Suggested structure
 

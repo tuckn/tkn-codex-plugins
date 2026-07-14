@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract concise evidence from local Codex JSONL session logs."""
+"""Search all Codex JSONL chats stored on this computer and return concise matching evidence."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class Message:
 
 
 @dataclass
-class SessionExtract:
+class ChatMatch:
     id: str
     timestamp: str
     cwd: str
@@ -129,7 +129,7 @@ def iter_json_lines(path: Path) -> Iterable[dict[str, Any]]:
                 print(f"warning: {path}:{line_number}: {exc}", file=sys.stderr)
 
 
-def extract_session(path: Path) -> SessionExtract | None:
+def read_session(path: Path) -> ChatMatch | None:
     meta: dict[str, Any] | None = None
     messages: list[Message] = []
     seen: set[tuple[str, str]] = set()
@@ -158,7 +158,7 @@ def extract_session(path: Path) -> SessionExtract | None:
     if not meta:
         return None
 
-    return SessionExtract(
+    return ChatMatch(
         id=str(meta.get("id") or ""),
         timestamp=str(meta.get("timestamp") or ""),
         cwd=str(meta.get("cwd") or ""),
@@ -171,11 +171,11 @@ def extract_session(path: Path) -> SessionExtract | None:
     )
 
 
-def is_approval_review(session: SessionExtract) -> bool:
+def is_approval_review(session: ChatMatch) -> bool:
     return any(message.text.lstrip().startswith(APPROVAL_REVIEW_PREFIX) for message in session.user_messages)
 
 
-def all_text(session: SessionExtract, include_assistant: bool) -> str:
+def all_text(session: ChatMatch, include_assistant: bool) -> str:
     parts = [session.cwd, session.id, session.timestamp]
     parts.extend(message.text for message in session.user_messages)
     if include_assistant:
@@ -199,7 +199,7 @@ def query_matches(text: str, queries: list[str], regex: bool) -> list[str]:
     return matched
 
 
-def passes_filters(session: SessionExtract, args: argparse.Namespace) -> bool:
+def passes_filters(session: ChatMatch, args: argparse.Namespace) -> bool:
     if args.thread_id and session.id not in args.thread_id:
         return False
 
@@ -246,9 +246,9 @@ def select_messages(messages: list[Message], per_role: int) -> list[Message]:
     return messages[:head] + messages[-tail:]
 
 
-def render_markdown(sessions: list[SessionExtract], args: argparse.Namespace) -> str:
+def render_markdown(sessions: list[ChatMatch], args: argparse.Namespace) -> str:
     lines = [
-        "# Codex Session Extract",
+        "# Codex Chat Search Results",
         "",
         f"Matched sessions: {len(sessions)}",
         "",
@@ -283,20 +283,20 @@ def render_markdown(sessions: list[SessionExtract], args: argparse.Namespace) ->
         for message in select_messages(session.user_messages, args.messages_per_role):
             lines.append(f"- {truncate(message.text, args.max_message_chars)}")
         if not session.user_messages:
-            lines.append("- (none extracted)")
+            lines.append("- (none found)")
 
         if args.include_assistant:
             lines.extend(["", "### Assistant Messages", ""])
             for message in select_messages(session.assistant_messages, args.messages_per_role):
                 lines.append(f"- {truncate(message.text, args.max_message_chars)}")
             if not session.assistant_messages:
-                lines.append("- (none extracted)")
+                lines.append("- (none found)")
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
 
 
-def to_jsonable(session: SessionExtract, args: argparse.Namespace) -> dict[str, Any]:
+def to_jsonable(session: ChatMatch, args: argparse.Namespace) -> dict[str, Any]:
     data = asdict(session)
     data["user_messages"] = [
         asdict(Message(m.role, m.source, truncate(m.text, args.max_message_chars)))
@@ -337,9 +337,9 @@ def main(argv: list[str] | None = None) -> int:
     if not sessions_root.is_dir():
         parser.error(f"sessions root not found: {sessions_root}")
 
-    matches: list[SessionExtract] = []
+    matches: list[ChatMatch] = []
     for path in sorted(sessions_root.rglob("*.jsonl")):
-        session = extract_session(path)
+        session = read_session(path)
         if session and passes_filters(session, args):
             matches.append(session)
 

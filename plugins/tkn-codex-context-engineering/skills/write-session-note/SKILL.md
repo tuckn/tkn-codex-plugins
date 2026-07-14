@@ -1,9 +1,9 @@
 ---
-name: maintain-session-note
+name: write-session-note
 description: 登録済み current project の projectId-specific state sessions folder に簡潔な session note を作成または更新する。ユーザー意図が file changes、investigation、重要判断、multi-turn tasks、resumable work、handoff、compaction、または chat の記録依頼に一致し、`.tkn/codex-context.yaml` が private registry で現在 workspace に解決できる場合に使う。marker 生成だけでは使わない。
 ---
 
-# Maintain Session Note
+# Write Session Note
 
 会話全文を保存せずに working state を chat 間で保持するために、この skill を使う。
 

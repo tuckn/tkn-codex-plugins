@@ -58,13 +58,13 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 - `init-project-context`:
   - repository の Codex project identity を初期化または更新し、小さな local marker
     `.tkn/codex-context.yaml` と private な user-global project registry に保存します。
-- `maintain-working-context`:
-  - `~/.tkn/codex-context/state/<projectId>/working-context.md` を active project context の
-    lightweight dashboard として保守します。
+- `write-current-working-context`:
+  - `~/.tkn/codex-context/state/<projectId>/working-context.md` を project の現在状態を示す
+    lightweight dashboard として作成または更新します。
 
 ### 作業記録と再開
 
-- `maintain-session-note`:
+- `write-session-note`:
   - 非自明な作業、handoff、resumable task のために project `sessions/` の簡潔な note を作成
     または更新します。
 - `resume-session`:
@@ -79,13 +79,13 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
   - decision records を review し、repository document updates、working-context changes、
     reusable guidance candidates を洗い出します。
 
-### 過去 session の復元と要約
+### このPCにある全projectのchat履歴の検索・review・要約
 
-- `extract-codex-sessions`:
-  - local Codex JSONL session logs から、themes、questions、decisions、outcomes、project history
-    を抽出します。
-- `review-codex-chats`:
-  - `~/.codex/sessions` の local Codex session logs を review し、
+- `search-all-codex-chats`:
+  - このPC上の全projectにまたがる Codex JSONL chat履歴を検索し、過去の会話、判断、
+    outcome に関する問い合わせへ、見つかった根拠を使って回答します。
+- `review-all-codex-chats`:
+  - `~/.codex/sessions` にある、このPC上の全projectのCodex chat履歴を review し、
     `~/.tkn/codex-context/data/session-reviews` に月間 source review note を作成します。
 - `distill-session-context`:
   - session note を短い reusable-context review candidate に distill し、review 後に

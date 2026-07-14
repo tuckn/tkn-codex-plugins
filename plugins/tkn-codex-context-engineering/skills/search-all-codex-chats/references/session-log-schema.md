@@ -1,6 +1,6 @@
 # Codex Session Log Schema
 
-Codex local chat logs are newline-delimited JSON files under the Codex home sessions directory.
+Codex chat logs are newline-delimited JSON files under the Codex home sessions directory.
 
 Common roots:
 
@@ -36,7 +36,7 @@ Important event types:
 
 `event_msg.payload.message` is usually a string.
 
-The same visible message can appear in both `response_item` and `event_msg`, so extraction should deduplicate exact normalized text.
+The same visible message can appear in both `response_item` and `event_msg`, so parsing should deduplicate exact normalized text.
 
 ## Matching Projects
 
@@ -61,7 +61,7 @@ The following is the Codex agent history whose request action you are assessing.
 
 These sessions wrap another transcript for approval or safety review. They often duplicate real chat content and should usually be skipped for user-facing history summaries unless the user explicitly wants approval-review behavior.
 
-## Practical Extraction Rules
+## Practical Search Rules
 
 - Start narrow: thread id, `cwd`, date range, then text query.
 - Use user messages to identify the user's questions, pain points, and goals.

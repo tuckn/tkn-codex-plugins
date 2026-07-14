@@ -52,7 +52,7 @@ Project `sessions/` 全体を理解目的で読まない。読むのは指定 se
    - `status`、`distillationStatus`、`distilledTo` があること。
 4. この chat の canonical session note path を、指定 session note として扱う。
 5. 以後この chat では、新しい session note を作成しない。
-6. `maintain-session-note` が必要な更新は、必ず指定 session note に書く。
+6. `write-session-note` が必要な更新は、必ず指定 session note に書く。
 7. 作業再開時点で、Frontmatter の `status` を `in-progress` にする。ただし user が閲覧のみを依頼している場合は変更しない。
 8. Skill が session note を更新したら、Frontmatter の `updated` を OS/system clock の timestamp に更新する。
 9. 再開した事実、現在の user intent、次の一手を既存 section に短く反映する。
@@ -74,11 +74,11 @@ Project `sessions/` 全体を理解目的で読まない。読むのは指定 se
 
 chronological log は増やしすぎない。resume の事実は、後続作業に必要な範囲で短く書く。
 
-## Relationship to maintain-session-note
+## Relationship to write-session-note
 
-この skill は `maintain-session-note` の代替ではない。対象 session note を固定するための entry skill である。
+この skill は `write-session-note` の代替ではない。対象 session note を固定するための entry skill である。
 
-resume 後に非自明な作業、file changes、handoff、completion が発生した場合は、`maintain-session-note` の記録基準に従う。ただし output path は新規 session note ではなく、resume した指定 session note にする。
+resume 後に非自明な作業、file changes、handoff、completion が発生した場合は、`write-session-note` の記録基準に従う。ただし output path は新規 session note ではなく、resume した指定 session note にする。
 
 ## Safety
 
