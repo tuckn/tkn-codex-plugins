@@ -85,6 +85,10 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `search-all-codex-chats`:
   - Searches Codex JSONL chat history across all projects on the current computer and uses matched
     evidence to answer questions about past discussions, decisions, and outcomes.
+- `refresh-project-context-from-chats`:
+  - Scans Codex chat history for the registered current project, reconciles one session note per
+    thread, materializes durable decisions, and updates the working-context dashboard. The first
+    run reviews all matched chats; later runs process only new or changed source fingerprints.
 - `review-all-codex-chats`:
   - Reviews Codex chat history across all projects on the current computer from `~/.codex/sessions`
     into monthly source review notes under `~/.tkn/codex-context/data/session-reviews`.
@@ -111,7 +115,7 @@ Project initialization is a readiness gate, not an automatic trigger.
   registered: `.tkn/codex-context.yaml` exists and its `projectId` resolves in
   `~/.tkn/codex-context/state/index.jsonl` for the current workspace.
 - Creating `.tkn/codex-context.yaml` does not by itself start session notes, decisions,
-  working-context updates, distillation, review, or audits.
+  working-context updates, chat-history refresh, distillation, review, or audits.
 - If a project-scoped Skill is requested before registration, guide the user to
   `init-project-context`; only invoke initialization when the user explicitly asks to initialize,
   move, or update project context.

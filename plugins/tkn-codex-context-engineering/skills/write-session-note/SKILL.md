@@ -119,6 +119,25 @@ sessionId: YYYYMMDDTHHMMSS<system-timezone-offset>
 
 `status` は作業ライフサイクルだけを表す。session 内の raw context が decisions や working context に取り込まれたかは `distillationStatus` と `distilledTo` で表す。
 
+### Codex chat provenance
+
+`refresh-project-context-from-chats` などが Codex JSONL chat から session note を再構築または対応付ける場合、次の optional Frontmatter を追加する。
+
+```yaml
+sourceType: codexChat
+sourceThreadIds:
+  - <thread-id>
+sourceRefs:
+  - YYYY/MM/DD/rollout-....jsonl
+```
+
+- `sourceThreadIds`: note の source になった Codex thread ids。通常は1件。既存 `resume-session` による明示的な継続関係がある場合だけ複数を許可する。
+- `sourceRefs`: Codex sessions root からの相対 JSONL paths。absolute path は書かない。
+- Reconstructed note の `date` と filename timestamp: source chat 開始時刻を system timezone に変換した値。
+- Reconstructed note の `updated`: reconstruction または refresh を実行した時刻。
+- Direct chat で通常作成する note では、これらの field を必須にしない。
+- Existing note にこれらの field がある場合、通常更新で削除しない。
+
 ## What to record
 
 - `Goal`: この chat の intended outcome。

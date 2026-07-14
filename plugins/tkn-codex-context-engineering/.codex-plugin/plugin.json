@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.8.0",
-  "description": "Initialize Codex projects, preserve versioned private project state, search and review Codex chat history across projects, and manage sessions, decisions, memos, freshness, and distillation.",
+  "version": "0.9.0",
+  "description": "Initialize Codex projects, refresh private project context from chat history, search and review Codex chats across projects, and manage sessions, decisions, memos, freshness, and distillation.",
   "author": {
     "name": "Tuckn"
   },
@@ -18,6 +18,7 @@
     "memos",
     "chat-review",
     "chat-history",
+    "context-refresh",
     "freshness",
     "distillation",
     "skills"
@@ -26,7 +27,7 @@
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Initialize projects, write private state, and reuse durable context",
-    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, versioned private context under ~/.tkn/codex-context, working dashboards, sessions, decisions, memos, Codex chat history search and review across projects, distillation, and freshness audits.",
+    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, versioned private context under ~/.tkn/codex-context, project-scoped refresh from Codex chat history, working dashboards, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -35,7 +36,7 @@
     ],
     "defaultPrompt": [
       "Initialize this repository in the private Codex context registry",
-      "Write this project's current working context",
+      "Refresh this project's session notes, decisions, and working context from Codex chat history",
       "Resume an existing project session note"
     ],
     "brandColor": "#2563EB",
