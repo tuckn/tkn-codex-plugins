@@ -529,17 +529,17 @@ class ContextBridgeIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(1, len(list(report_dir.glob("*.md"))))
 
-            self.run_main("distill-session", "--session", str(session), "--write")
-            default_candidates = (
-                self.home
-                / ".codex-working"
-                / "projects"
-                / project_id
-                / "context-bridge"
-                / "distilled-session-candidates"
+            candidate_dir = self.root / "distilled-candidates"
+            self.run_main(
+                "distill-session",
+                "--session",
+                str(session),
+                "--dest",
+                str(candidate_dir),
+                "--write",
             )
-            candidate = next(default_candidates.glob("*.md"))
-            distilled_ref = f"~/.codex-working/projects/{project_id}/context-bridge/distilled-session-candidates/{candidate.name}"
+            candidate = next(candidate_dir.glob("*.md"))
+            distilled_ref = f"distilled-candidates/{candidate.name}"
             self.run_main(
                 "finalize-session-distillation",
                 "--session",

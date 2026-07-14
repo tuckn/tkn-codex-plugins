@@ -81,13 +81,13 @@ decision record の Frontmatter を一次 index として扱う。
    - `promotionStatus` / `promotedTo` metadata 更新候補
    - project `decisions/` のみに残す対象
    - obsolete、superseded、または user review が必要な対象
-7. global context になり得る要素の抽出。
+7. global context 候補になり得る要素の抽出。
    - repo 固有情報を除いた reusable rule / preference / workflow / failed approach。
    - recommended destination class: `working-context`、`decision`、`candidate`。
    - source decision paths と根拠。
 8. concise review result の作成。
 9. ユーザーが edits を依頼した場合、target docs への scoped changes と validation の記録。
-10. ユーザーが global promotion を依頼した場合、`promote-global-context` の workflow に従う。review だけで `~/.tkn/codex-context` へ書き込まない。
+10. ユーザーが global promotion を依頼した場合も、この Skill では候補整理と metadata review までに留める。review だけで `~/.tkn/codex-context` へ書き込まない。
 11. update が substantial または uncertain な場合、durable docs を直接編集する前に `_inbox/ai` または repository configured AI output folder へ proposal note を作成。
 
 ## Review criteria
@@ -138,7 +138,7 @@ global context 候補を出す場合は、次を含める。
 - reusable essence
 - repo-specific details to remove
 - recommended destination class: `working-context` / `decision` / `candidate`
-- suggested `promotionStatus` change after promotion
+- suggested metadata follow-up if the user later promotes the candidate outside this Skill set
 - unresolved questions or user approval needed
 
 ## Output format
@@ -171,7 +171,7 @@ edit requests では次を summarize する。
 - decisions reflected
 - working context changes
 - reusable guidance changes
-- global context candidates or promotions
+- global context candidates
 - promotion metadata changes
 - decisions intentionally left unchanged
 - validation performed

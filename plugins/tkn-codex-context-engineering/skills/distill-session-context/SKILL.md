@@ -7,7 +7,7 @@ description: Distill a Codex Project session note from a projectId-specific sess
 
 Use this skill to turn one session note into a reviewable context candidate, then close the source session metadata after the reviewed learning has an accepted destination.
 
-Default to candidate generation. Do not mark the source session as distilled, update working context, create decision records, promote global context, or edit AGENTS.md/Skills unless the user explicitly asks for that follow-up.
+Default to candidate generation. Do not mark the source session as distilled, update working context, create decision records, or edit AGENTS.md/Skills unless the user explicitly asks for that follow-up.
 
 ## Activation Gate
 
@@ -38,21 +38,21 @@ python <plugin-root>/scripts/context_bridge/distill_session_context.py \
   --dry-run
 ```
 
-Write a candidate under the private Codex working root for the current registered project:
+Write a candidate to the destination specified by the current project folder instructions:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
+  --dest <project-working-root>/context-bridge/distilled-session-candidates \
   --write
 ```
-
-The default destination is `%USERPROFILE%\.codex-working\projects\<projectId>\context-bridge\distilled-session-candidates\`.
 
 Classify the candidate when the likely destination is already clear:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
+  --dest <project-working-root>/context-bridge/distilled-session-candidates \
   --kind decision-candidate \
   --write
 ```
@@ -83,7 +83,7 @@ Use `partial` when only some useful content was accepted:
 python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --status partial \
-  --distilled-to ~/.codex-working/projects/<projectId>/context-bridge/distilled-session-candidates/<candidate>.md \
+  --distilled-to <project-working-root>/context-bridge/distilled-session-candidates/<candidate>.md \
   --write
 ```
 
@@ -104,7 +104,7 @@ The generated file is only a review candidate. Promotion is a separate step.
 
 - Use `record-decision` for accepted repository decisions.
 - Use `maintain-working-context` for accepted repository current truth.
-- Use `promote-global-context` for explicit global writes.
+- Global context writes are outside this bundled Skill set; create a reviewed candidate or decision first.
 - Update AGENTS.md or Skills only after checking current repository behavior and public/private path safety.
 - Use finalization only after the accepted destination exists or after review decides `no-action`.
 
@@ -113,5 +113,5 @@ The generated file is only a review candidate. Promotion is a separate step.
 - Treat session notes as raw or silver context, not current truth.
 - Do not copy full chat transcripts or full session notes into candidates.
 - Do not distill a session note that contains secrets, credentials, tokens, private keys, full env vars, large logs, or unnecessary personal/customer data.
-- Do not put private absolute paths in `--distilled-to`; use private working-root paths under `~/.codex-working/projects/<projectId>/...`, project-context paths under `~/.tkn/codex-context/state/<projectId>/...`, or other explicit `~/.tkn/codex-context/...` destinations.
-- Keep candidate output in the private Codex working root unless the user explicitly requests a repository artifact.
+- Do not put private absolute paths in `--distilled-to`; use project-context paths under `~/.tkn/codex-context/state/<projectId>/...`, project-specific relative refs, or another explicit stable destination.
+- Keep candidate output under the destination specified by the current project folder instructions unless the user explicitly requests a repository artifact.

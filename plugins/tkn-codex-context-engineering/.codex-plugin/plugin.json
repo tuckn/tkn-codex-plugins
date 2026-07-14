@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.6.0",
-  "description": "Initialize Codex projects, choose and clean up runtime working roots, preserve versioned private project state, review local chat logs, and manage sessions, decisions, memos, global context, freshness, and distillation.",
+  "version": "0.8.0",
+  "description": "Initialize Codex projects, preserve versioned private project state, review local chat logs, and manage sessions, decisions, memos, freshness, and distillation.",
   "author": {
     "name": "Tuckn"
   },
@@ -17,21 +17,15 @@
     "decisions",
     "memos",
     "chat-review",
-    "migration",
-    "runtime",
-    "runtime-cleanup",
-    "working-root",
-    "local-runtime",
     "freshness",
     "distillation",
-    "global-context",
     "skills"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Initialize projects, maintain private state, and reuse durable context",
-    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, versioned private context under ~/.tkn/codex-context, runtime working-root selection, legacy context migration, working dashboards, sessions, decisions, memos, chat review, distillation, freshness audits, read-only loading, snapshot import, and explicit promotion.",
+    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, versioned private context under ~/.tkn/codex-context, working dashboards, sessions, decisions, memos, chat review, distillation, and freshness audits.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -40,7 +34,7 @@
     ],
     "defaultPrompt": [
       "Initialize this repository in the private Codex context registry",
-      "Use the right Codex working root before installing Python or Node dependencies",
+      "Maintain this project's working context",
       "Resume an existing project session note"
     ],
     "brandColor": "#2563EB",

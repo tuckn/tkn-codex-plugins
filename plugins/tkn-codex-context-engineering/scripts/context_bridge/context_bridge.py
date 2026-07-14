@@ -144,21 +144,6 @@ def global_data_source(root: Path) -> Path:
     return data_root(root) if is_versioned_store(root) else root
 
 
-def current_repo_root() -> Path:
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return Path.cwd().resolve()
-    if completed.returncode == 0 and completed.stdout.strip():
-        return Path(completed.stdout.strip()).expanduser().resolve()
-    return Path.cwd().resolve()
-
-
 def slugify(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9]+", "-", value.strip().lower()).strip("-")
     return slug or "global-context"
@@ -408,7 +393,8 @@ def validate_distilled_to_ref(value: str) -> str:
     )
     if ref == "~" or (ref.startswith("~/") and not ref.startswith(allowed_home_refs)):
         raise SystemExit(
-            "Only ~/.tkn/codex-context or ~/.codex-working paths are allowed "
+            "Only ~/.tkn/codex-context, legacy ~/.codex-context, or explicit ~/.codex-working "
+            "paths are allowed "
             f"for home-relative distilledTo refs: {value}"
         )
     if ref == ".." or ref.startswith("../") or "/../" in ref:
@@ -1172,51 +1158,12 @@ def write_registry_record(index_path: Path, record: dict[str, object], write: bo
         index_path.write_text(text, encoding="utf-8")
 
 
-def registered_current_project_id(repo_root: Path, result: Result) -> str:
-    local_project_path = repo_root / LOCAL_MARKER
-    if not local_project_path.exists():
-        raise SystemExit(
-            "Default context-bridge output requires .tkn/codex-context.yaml. "
-            "Pass --dest or --report-dest explicitly, or initialize the project first."
-        )
-    local_project_text = local_project_path.read_text(encoding="utf-8", errors="replace")
-    local_project_id = yaml_value(local_project_text, "projectId")
-    if not local_project_id:
-        raise SystemExit(
-            "Default context-bridge output requires projectId in .tkn/codex-context.yaml. "
-            "Pass --dest or --report-dest explicitly, or initialize the project first."
-        )
-
-    index_path = registry_path(expand_store_root(DEFAULT_CONTEXT_ROOT))
-    if not index_path.exists():
-        raise SystemExit(
-            "Default context-bridge output requires "
-            "~/.tkn/codex-context/state/index.jsonl. "
-            "Pass --dest or --report-dest explicitly, or initialize the project first."
-        )
-
-    current_root = normalize_registry_path(repo_root)
-    records = read_jsonl(index_path, result)
-    for record in records:
-        if record.get("projectId") != local_project_id:
-            continue
-        if normalize_registry_path(str(record.get("currentRoot") or "")) == current_root:
-            return local_project_id
-
+def require_explicit_output_dest(option_name: str, command_name: str) -> Path:
     raise SystemExit(
-        "Default context-bridge output requires the current workspace to resolve in "
-        "~/.tkn/codex-context/state/index.jsonl. "
-        "Pass --dest or --report-dest explicitly, "
-        "or refresh project initialization first."
+        f"{command_name} requires {option_name}. "
+        "Choose a destination from the current project folder instructions "
+        "or pass an explicit path for this run."
     )
-
-
-def default_context_bridge_dest(kind: str, result: Result) -> Path:
-    repo_root = current_repo_root()
-    project_id_value = registered_current_project_id(repo_root, result)
-    dest = Path.home() / ".codex-working" / "projects" / project_id_value / "context-bridge" / kind
-    result.add("default-dest", str(dest))
-    return dest.resolve()
 
 
 def initialize_store_layout(
@@ -1414,7 +1361,7 @@ This file is the lightweight dashboard for user-global Codex context.
 - Generated context is kept separate from Codex configuration in `~/.codex`.
 - Project working contexts are stored in `state/<projectId>/`; Codex project folders are tracked in `state/index.jsonl`.
 - Repositories should load selected global context read-only by default.
-- Repository snapshots should go under the private Codex working root unless explicitly requested elsewhere.
+- Repository snapshots require an explicit destination chosen from current project folder instructions.
 - Snapshot global context is historical reference, not an override for repository rules or current user instructions.
 
 ## Active Work
@@ -1885,7 +1832,7 @@ def import_context(args: argparse.Namespace) -> Result:
     source = global_data_source(source_root)
     include = parse_include(args.include)
     result = Result()
-    dest = expand(args.dest) if args.dest else default_context_bridge_dest("global-context", result)
+    dest = expand(args.dest) if args.dest else require_explicit_output_dest("--dest", "import")
 
     if not source_root.exists():
         raise SystemExit(f"Source does not exist: {source_root}")
@@ -1987,12 +1934,11 @@ def audit_freshness(args: argparse.Namespace) -> Result:
         items=items,
         args=args,
     )
-    report_dest = (
-        expand(args.report_dest)
-        if args.report_dest
-        else default_context_bridge_dest("freshness-reviews", result)
-    )
-    report_path = report_dest / f"{now_compact()}-freshness-audit.md"
+    report_path = None
+    if args.report_dest:
+        report_path = expand(args.report_dest) / f"{now_compact()}-freshness-audit.md"
+    elif args.write:
+        require_explicit_output_dest("--report-dest", "audit-freshness")
 
     result.add("source", str(source))
     result.add("source-label", source_label)
@@ -2008,14 +1954,17 @@ def audit_freshness(args: argparse.Namespace) -> Result:
     if len(needs_review) > args.max_items:
         result.warn(f"{len(needs_review) - args.max_items} review item(s) omitted from stdout")
 
-    write_text(report_path, report, args.write, result, overwrite=True)
+    if report_path is not None:
+        write_text(report_path, report, args.write, result, overwrite=True)
+    else:
+        result.add("report-dest", "not written; pass --report-dest with --write to save a report")
     return result
 
 
 def distill_session(args: argparse.Namespace) -> Result:
     session_path = expand(args.session)
     result = Result()
-    dest = expand(args.dest) if args.dest else default_context_bridge_dest("distilled-session-candidates", result)
+    dest = expand(args.dest) if args.dest else require_explicit_output_dest("--dest", "distill-session")
 
     if not session_path.exists():
         raise SystemExit(f"Session note does not exist: {session_path}")
@@ -2220,11 +2169,7 @@ def build_parser() -> argparse.ArgumentParser:
     read.add_argument("--source", default=DEFAULT_CONTEXT_ROOT)
     read.add_argument(
         "--dest",
-        help=(
-            "Snapshot destination. Defaults to "
-            "%USERPROFILE%\\.codex-working\\projects\\<projectId>\\context-bridge\\global-context "
-            "when the current project is registered."
-        ),
+        help="Snapshot destination. Required; choose a path from the current project folder instructions.",
     )
     read.add_argument("--include", default=DEFAULT_INCLUDE)
     read.add_argument("--decision", action="append", help="specific decision markdown filename to import")
@@ -2252,11 +2197,7 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--include", default=DEFAULT_FRESHNESS_INCLUDE)
     audit.add_argument(
         "--report-dest",
-        help=(
-            "Report destination. Defaults to "
-            "%USERPROFILE%\\.codex-working\\projects\\<projectId>\\context-bridge\\freshness-reviews "
-            "when the current project is registered."
-        ),
+        help="Report destination. Required with --write; choose a path from the current project folder instructions.",
     )
     audit.add_argument("--max-items", type=int, default=50)
     audit.add_argument("--working-context-days", type=int, default=30)
@@ -2276,11 +2217,7 @@ def build_parser() -> argparse.ArgumentParser:
     distill.add_argument("--session", required=True, help="session note markdown path")
     distill.add_argument(
         "--dest",
-        help=(
-            "Candidate destination. Defaults to "
-            "%USERPROFILE%\\.codex-working\\projects\\<projectId>\\context-bridge\\distilled-session-candidates "
-            "when the current project is registered."
-        ),
+        help="Candidate destination. Required; choose a path from the current project folder instructions.",
     )
     distill.add_argument(
         "--kind",

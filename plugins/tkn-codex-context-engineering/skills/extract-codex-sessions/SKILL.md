@@ -64,4 +64,4 @@ Read `references/session-log-schema.md` when:
 - Do not paste large raw logs into the final answer.
 - Prefer summaries with short evidence snippets.
 - Do not write extracted logs into committed files.
-- If a durable local artifact is useful, place it under the private Codex working root or another ignored/private location unless the user asks otherwise.
+- If a durable local artifact is useful, place it under the working location specified by the current project folder instructions or another ignored/private location unless the user asks otherwise.

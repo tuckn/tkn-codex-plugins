@@ -47,15 +47,14 @@ python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
   --dry-run
 ```
 
-Write a review report to the private Codex working root for the current registered project:
+Write a review report to the destination specified by the current project folder instructions:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
   --source ~/.tkn/codex-context/state/<projectId> \
+  --report-dest <project-working-root>/context-bridge/freshness-reviews \
   --write
 ```
-
-The default report destination is `%USERPROFILE%\.codex-working\projects\<projectId>\context-bridge\freshness-reviews\`.
 
 Use a global report destination only when the user explicitly asks to preserve the audit in the private global store:
 
@@ -80,4 +79,4 @@ python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
 - Treat the audit as a signal, not a correctness verdict.
 - Current user instructions, current repository instructions, current files, and git state take precedence over older context.
 - Do not paste full context files into chat just to audit freshness.
-- Keep generated audit reports under the private Codex working root unless the user explicitly requests a durable private global or repository report.
+- Keep generated audit reports under the destination specified by the current project folder instructions unless the user explicitly requests a durable private global or repository report.

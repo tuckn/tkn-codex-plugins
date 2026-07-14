@@ -67,19 +67,19 @@ python <plugin-root>/scripts/context_bridge/audit_context_freshness.py `
   --dry-run
 ```
 
-Use `--write` to save a freshness review report under the private Codex
-working root for the current registered project.
+Use `--report-dest` and `--write` to save a freshness review report under
+the destination specified by the current project folder instructions.
 
 Distill a session note into a review candidate:
 
 ```powershell
 python <plugin-root>/scripts/context_bridge/distill_session_context.py `
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md `
+  --dest <project-working-root>/context-bridge/distilled-session-candidates `
   --dry-run
 ```
 
-Use `--write` to save a candidate under the private Codex working root for
-the current registered project.
+Use `--write` to save a candidate under the explicit `--dest`.
 
 Finalize a reviewed session distillation:
 
@@ -99,12 +99,11 @@ Create a local snapshot of global context:
 ```powershell
 python <plugin-root>/scripts/context_bridge/import_context.py `
   --source ~/.tkn/codex-context `
+  --dest <project-working-root>/context-bridge/global-context `
   --include working-context,decisions,candidates `
   --dry-run
 ```
 
-The snapshot default destination is the private Codex working root:
-`%USERPROFILE%\.codex-working\projects\<projectId>\context-bridge\global-context\`.
 Use `--dest .codex-context/global-context` only when a repository snapshot is
 explicitly needed.
 
