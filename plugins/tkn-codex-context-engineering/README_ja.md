@@ -7,7 +7,7 @@
 繰り返さずに再開できるようにします。
 
 明示的に依頼した場合は、過去の Codex の会話ログから役立つ内容を探したり、
-`~/.codex-context` に置いた private な共通メモを読み込んだりできます。
+`~/.tkn/codex-context` に置いた private な共通メモを読み込んだりできます。
 
 ## Plugin の構成
 
@@ -41,8 +41,8 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 
 ### プロジェクト登録と現在の状況維持
 
-- `register-project-context`: repository の Codex project identity を登録または更新し、
-  小さな local marker `.codex-context/project.yaml` と private な user-global
+- `init-project-context`: repository の Codex project identity を初期化または更新し、
+  小さな local marker `.tkn/codex-context.yaml` と private な user-global
   project registry に保存します。
 - `migrate-local-project-context`: legacy な repo-local `.codex-context` の
   working context、sessions、decisions を private project context folder に移動します。
@@ -52,7 +52,7 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 - `cleanup-local-runtime`: legacy な `.local` runtime folder を整理し、再利用する scripts と
   小さな durable inputs を移動し、`.venv` や `node_modules` は通常の package manager で
   再作成した上で、caches や generated intermediates を削除します。
-- `maintain-working-context`: `~/.codex-context/projects/<projectId>/working-context.md` を
+- `maintain-working-context`: `~/.tkn/codex-context/state/<projectId>/working-context.md` を
   active project context の lightweight dashboard として保守します。
 
 ### 作業記録と再開
@@ -74,7 +74,7 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 - `extract-codex-sessions`: local Codex JSONL session logs から、themes、questions、
   decisions、outcomes、project history を抽出します。
 - `review-codex-chats`: `~/.codex/sessions` の local Codex session logs を review し、
-  `~/.codex-context/session-reviews` に月間 source review note を作成します。
+  `~/.tkn/codex-context/data/session-reviews` に月間 source review note を作成します。
 - `distill-session-context`: session note を短い reusable-context review candidate に
   distill し、review 後に distillation metadata を finalize します。
 
@@ -98,31 +98,34 @@ plugins/tkn-codex-context-engineering/scripts/context_bridge/
 この plugin は、repo-local には小さな project marker だけを置き、private な project context は
 user-global store に置きます。
 
-- Local marker は `.codex-context/project.yaml` です。`projectId`、`title`、
+- Local marker は `.tkn/codex-context.yaml` です。`projectId`、`title`、
   `description`、`createdAt`、`updatedAt` だけを持ちます。
-- Project context は `~/.codex-context/projects/<projectId>/` に置きます。
-- User-global context は `~/.codex-context` に置きます。
+- Project context は `~/.tkn/codex-context/state/<projectId>/` に置きます。
+- User-global artifacts は `~/.tkn/codex-context/data/` に置きます。
+- Project registry と state は `~/.tkn/codex-context/state/` に置きます。
+- Store configuration は `~/.tkn/codex-context/config/config.yaml` です。
+- Store root には現行 layout を説明する更新済み `README.md` を置きます。
 - Global context の読み込みは、既定では read-only にします。
 - Snapshot import や global promotion は、明示的に依頼された場合だけ行います。
 
 ## 発動モデル
 
-Project 登録は readiness gate であり、自動発動の trigger ではありません。
+Project 初期化は readiness gate であり、自動発動の trigger ではありません。
 
 - Skill は、ユーザーの意図がその Skill に一致した場合に使います。
 - Project-scoped な context を読んだり書いたりする Skill では、現在の repository が意図的に
-  登録済みであることも必要です。つまり `.codex-context/project.yaml` が存在し、その
-  `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる
+  登録済みであることも必要です。つまり `.tkn/codex-context.yaml` が存在し、その
+  `projectId` が `~/.tkn/codex-context/state/index.jsonl` で現在の workspace に解決できる
   状態です。
-- `.codex-context/project.yaml` が作成されただけで、session note、decision、
+- `.tkn/codex-context.yaml` が作成されただけで、session note、decision、
   working-context update、distillation、review、import、promotion、audit は開始しません。
-- 未登録の状態で project-scoped Skill が必要になった場合は、`register-project-context` を
-  案内します。登録を実行するのは、ユーザーが register、migrate、move、project context 更新を
+- 未登録の状態で project-scoped Skill が必要になった場合は、`init-project-context` を
+  案内します。初期化を実行するのは、ユーザーが initialize、migrate、move、project context 更新を
   明示的に依頼した場合だけです。
-- `register-project-context` と `migrate-local-project-context` のような入口 Skill は、
+- `init-project-context` と `migrate-local-project-context` のような入口 Skill は、
   readiness gate を作成または修復するため、未登録状態でも使えます。
 - `use-project-working-root` や `cleanup-local-runtime` のような runtime setup / cleanup
   Skill は、project folder が同期対象外の software Git repository で、環境定義と ignore
   rules が揃っている場合、または user が project-local runtime cleanup を明示的に選んだ場合
-  だけ project folder 自体を使います。それ以外では登録済み projectId に基づく private
+  だけ project folder 自体を使います。それ以外では初期化済み projectId に基づく private
   `.codex-working` root を使います。

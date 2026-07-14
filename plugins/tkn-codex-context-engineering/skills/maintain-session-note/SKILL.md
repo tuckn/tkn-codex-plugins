@@ -1,6 +1,6 @@
 ---
 name: maintain-session-note
-description: 登録済み current project の ~/.codex-context/projects/<projectId>/sessions に簡潔な session note を作成または更新する。ユーザー意図が file changes、investigation、重要判断、multi-turn tasks、resumable work、handoff、compaction、または chat の記録依頼に一致し、`.codex-context/project.yaml` が private registry で現在 workspace に解決できる場合に使う。marker 生成だけでは使わない。
+description: 登録済み current project の projectId-specific state sessions folder に簡潔な session note を作成または更新する。ユーザー意図が file changes、investigation、重要判断、multi-turn tasks、resumable work、handoff、compaction、または chat の記録依頼に一致し、`.tkn/codex-context.yaml` が private registry で現在 workspace に解決できる場合に使う。marker 生成だけでは使わない。
 ---
 
 # Maintain Session Note
@@ -14,23 +14,23 @@ description: 登録済み current project の ~/.codex-context/projects/<project
 この skill は project-scoped な session note を書くため、次の両方を満たす場合だけ実行準備ができている。
 
 - ユーザー意図がこの skill に一致する。例: 非自明な作業記録、handoff、resumable work、chat 記録依頼。
-- 現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる。
+- 現在の repository に `.tkn/codex-context.yaml` があり、その `projectId` が `~/.tkn/codex-context/state/index.jsonl` で現在の workspace に解決できる。
 
-`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。
+`.tkn/codex-context.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。
 
-未登録または registry 解決不能の場合、session note を作成しない。`register-project-context` を案内し、登録を実行するのはユーザーが明示的に register/update を依頼した場合だけにする。
+未登録または registry 解決不能の場合、session note を作成しない。`init-project-context` を案内し、登録を実行するのはユーザーが明示的に register/update を依頼した場合だけにする。
 
 ## File location
 
 chat/thread ごとに 1 file を作成または更新する。
 
-`~/.codex-context/projects/<projectId>/sessions/YYYYMMDDTHHMMSS<system-timezone-offset>-<task-purpose-slug>.md`
+`~/.tkn/codex-context/state/<projectId>/sessions/YYYYMMDDTHHMMSS<system-timezone-offset>-<task-purpose-slug>.md`
 
 - OS/system clock の timestamp と timezone offset の利用。ただし repository instruction が別途ある場合はその優先。
 - task purpose から作る短い kebab-case English slug の利用。
 - 同じ chat/thread では同じ session note の継続更新。
 - ユーザーが session note path を指定した場合、その file だけの読み込みと更新。
-- `~/.codex-context/projects/index.jsonl` から project context folder を解決する。未登録の場合は自動登録せず、`register-project-context` を案内する。
+- `~/.tkn/codex-context/state/index.jsonl` から project context folder を解決する。未登録の場合は自動登録せず、`init-project-context` を案内する。
 - project `working-context.md` が存在し、非自明な task に関連する current project truth を含む可能性がある場合の確認。
 - session note の生成日時が不明な既存 note を更新する場合、filename の timestamp を `date` と `sessionId` に使う。
 

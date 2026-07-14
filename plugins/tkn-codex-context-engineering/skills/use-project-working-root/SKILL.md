@@ -46,15 +46,15 @@ The default private working root is:
 %USERPROFILE%\.codex-working\projects\<projectId>\
 ```
 
-Use the actual registered `projectId` from `.codex-context/project.yaml`.
+Use the actual registered `projectId` from `.tkn/codex-context.yaml`.
 
-This root is available only after the project has been registered with `register-project-context` and the marker resolves through the private registry:
+This root is available only after the project has been registered with `init-project-context` and the marker resolves through the private registry:
 
 ```text
-~/.codex-context/projects/index.jsonl
+~/.tkn/codex-context/state/index.jsonl
 ```
 
-If registration is missing or the registry cannot resolve the current workspace, do not create a durable private runtime folder. Guide the user to run `register-project-context` first. For throwaway scratch only, use the OS temporary directory.
+If registration is missing or the registry cannot resolve the current workspace, do not create a durable private runtime folder. Guide the user to run `init-project-context` first. For throwaway scratch only, use the OS temporary directory.
 
 Do not infer `projectId` from the folder name alone.
 

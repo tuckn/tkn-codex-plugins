@@ -1,6 +1,6 @@
 ---
 name: resume-session
-description: 新しい chat で既存の ~/.codex-context/projects/<projectId>/sessions session note またはユーザー指定の explicit session note を継続対象として指定し、その chat では新規 session note を作成せず指定 session note を更新する。resume、continue、継続、再開、引き継ぎ、session path/name 指定で使う。current project から解決する場合は `.codex-context/project.yaml` が private registry で現在 workspace に解決できることが必要で、marker 生成だけでは使わない。
+description: 新しい chat で既存の projectId-specific sessions note またはユーザー指定の explicit session note を継続対象として指定し、その chat では新規 session note を作成せず指定 session note を更新する。resume、continue、継続、再開、引き継ぎ、session path/name 指定で使う。current project から解決する場合は `.tkn/codex-context.yaml` が private registry で現在 workspace に解決できることが必要で、marker 生成だけでは使わない。
 ---
 
 # Resume Session
@@ -13,16 +13,16 @@ description: 新しい chat で既存の ~/.codex-context/projects/<projectId>/s
 
 この skill は、ユーザーが既存 session note の resume、continue、継続、再開、引き継ぎを依頼した場合だけ使う。
 
-ユーザーが完全な session note path を指定した場合、その file を明示 source として扱える。filename、basename、または「最新の session」のように current project から解決する場合は、現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる必要がある。
+ユーザーが完全な session note path を指定した場合、その file を明示 source として扱える。filename、basename、または「最新の session」のように current project から解決する場合は、現在の repository に `.tkn/codex-context.yaml` があり、その `projectId` が `~/.tkn/codex-context/state/index.jsonl` で現在の workspace に解決できる必要がある。
 
-`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、明示 path の指定または `register-project-context` を案内する。
+`.tkn/codex-context.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、明示 path の指定または `init-project-context` を案内する。
 
 ## Command shape
 
 ユーザーは次のように指定できる。
 
 ```text
-$resume-session ~/.codex-context/projects/<projectId>/sessions/YYYYMMDDTHHMMSS+0900-task.md
+$resume-session ~/.tkn/codex-context/state/<projectId>/sessions/YYYYMMDDTHHMMSS+0900-task.md
 $resume-session YYYYMMDDTHHMMSS+0900-task
 $resume-session YYYYMMDDTHHMMSS+0900-task.md
 $resume-session
@@ -33,7 +33,7 @@ $resume-session
 ## Session resolution
 
 1. ユーザーが path を指定した場合、その file だけを読む。
-2. ユーザーが filename または basename を指定した場合、`~/.codex-context/projects/index.jsonl` から current project context folder を解決し、その `sessions/` 直下の filename として解決する。
+2. ユーザーが filename または basename を指定した場合、`~/.tkn/codex-context/state/index.jsonl` から current project context folder を解決し、その `sessions/` 直下の filename として解決する。
 3. `.md` が省略されている場合、`.md` を補って解決する。
 4. ユーザーが session file を指定しなかった場合、current project `sessions/*.md` のうち Frontmatter `updated` が最も新しい session note を選ぶ。
 5. `updated` がない、Frontmatter が壊れている、または日時 parse ができない file は、fallback として filesystem mtime を使って並べる。

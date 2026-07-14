@@ -7,7 +7,7 @@ repository, active work, and important decisions, then uses those notes to make 
 to resume.
 
 When you ask it to, it can also look back through older Codex chat logs and reuse selected private
-notes stored in `~/.codex-context`.
+notes stored in `~/.tkn/codex-context`.
 
 ## Plugin Files
 
@@ -41,8 +41,8 @@ Included Skills are grouped by the role they play in the context lifecycle.
 
 ### Project Setup And Live Context
 
-- `register-project-context`: Registers or refreshes a repository's Codex project
-  identity with a small local `.codex-context/project.yaml` marker and the
+- `init-project-context`: Initializes or refreshes a repository's Codex project
+  identity with a small local `.tkn/codex-context.yaml` marker and the
   private user-global project registry.
 - `migrate-local-project-context`: Moves legacy repo-local `.codex-context`
   working context, sessions, and decisions into the private project context folder.
@@ -52,7 +52,7 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `cleanup-local-runtime`: Cleans up legacy `.local` runtime folders by moving
   reusable scripts and small durable inputs, recreating `.venv` or `node_modules`
   through normal package managers, and deleting caches or generated intermediates.
-- `maintain-working-context`: Maintains `~/.codex-context/projects/<projectId>/working-context.md`
+- `maintain-working-context`: Maintains `~/.tkn/codex-context/state/<projectId>/working-context.md`
   as a lightweight dashboard for active project context.
 
 ### Active Work Records And Resume Flow
@@ -74,7 +74,7 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `extract-codex-sessions`: Extracts themes, questions, decisions, outcomes, or
   project history from local Codex JSONL session logs.
 - `review-codex-chats`: Reviews local Codex session logs from `~/.codex/sessions`
-  into monthly source review notes under `~/.codex-context/session-reviews`.
+  into monthly source review notes under `~/.tkn/codex-context/data/session-reviews`.
 - `distill-session-context`: Distills session notes into short reusable-context review
   candidates and finalizes their distillation metadata after review.
 
@@ -98,30 +98,33 @@ Included Skills are grouped by the role they play in the context lifecycle.
 The plugin keeps a small repo-local project marker, while private project context lives in the
 user-global store.
 
-- The local marker is `.codex-context/project.yaml`; it contains `projectId`,
+- The local marker is `.tkn/codex-context.yaml`; it contains `projectId`,
   `title`, `description`, `createdAt`, and `updatedAt`.
-- Project context lives under `~/.codex-context/projects/<projectId>/`.
-- User-global context lives under `~/.codex-context`.
+- Project context lives under `~/.tkn/codex-context/state/<projectId>/`.
+- User-global artifacts live under `~/.tkn/codex-context/data/`.
+- Project registry and state live under `~/.tkn/codex-context/state/`.
+- Store configuration is `~/.tkn/codex-context/config/config.yaml`.
+- The store root keeps an updated `README.md` describing the current layout.
 - Global context loading should be read-only by default.
 - Snapshot imports and global promotions should happen only when explicitly requested.
 
 ## Activation Model
 
-Project registration is a readiness gate, not an automatic trigger.
+Project initialization is a readiness gate, not an automatic trigger.
 
 - A Skill should run because the user intent matches that Skill.
 - For project-scoped context reads or writes, the current repository must also be intentionally
-  registered: `.codex-context/project.yaml` exists and its `projectId` resolves in
-  `~/.codex-context/projects/index.jsonl` for the current workspace.
-- Creating `.codex-context/project.yaml` does not by itself start session notes, decisions,
+  registered: `.tkn/codex-context.yaml` exists and its `projectId` resolves in
+  `~/.tkn/codex-context/state/index.jsonl` for the current workspace.
+- Creating `.tkn/codex-context.yaml` does not by itself start session notes, decisions,
   working-context updates, distillation, review, import, promotion, or audits.
 - If a project-scoped Skill is requested before registration, guide the user to
-  `register-project-context`; only invoke registration when the user explicitly asks to register,
+  `init-project-context`; only invoke initialization when the user explicitly asks to initialize,
   migrate, move, or update project context.
-- Entry Skills such as `register-project-context` and `migrate-local-project-context` may run before
+- Entry Skills such as `init-project-context` and `migrate-local-project-context` may run before
   registration because their purpose is to create or repair that readiness gate.
 - Runtime setup and cleanup Skills such as `use-project-working-root` and
   `cleanup-local-runtime` may use the project folder itself only when it is clearly a software
   Git repository outside sync folders with existing environment definitions and ignore rules, or
   when the user explicitly chooses project-local runtime cleanup. Otherwise they require
-  registration and use the private `.codex-working` project root.
+  initialization and use the private `.codex-working` project root.

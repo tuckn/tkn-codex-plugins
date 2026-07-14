@@ -15,15 +15,15 @@ Brain-Dump を、素材の勢いを失わせずに扱いやすい Markdown note 
 
 1. chat 内でユーザーが保存場所を指示した場合は、その場所に従う。
 2. `AGENTS.md` などの repository instructions が保存場所を指定している場合は、その場所に従う。
-3. それ以外では、登録済み current project の `~/.codex-context/projects/<projectId>/memos/` に作成する。
+3. それ以外では、登録済み current project の `~/.tkn/codex-context/state/<projectId>/memos/` に作成する。
 
 既定の filename:
 
-`~/.codex-context/projects/<projectId>/memos/YYYYMMDDTHHMMSS<system-timezone-offset>_<short-ja-or-en-title>.md`
+`~/.tkn/codex-context/state/<projectId>/memos/YYYYMMDDTHHMMSS<system-timezone-offset>_<short-ja-or-en-title>.md`
 
 - timestamp は system timezone の offset 付き local time を使う。
 - filename title は内容が scan できる短い名前にする。
-- current project に保存する場合は、`.codex-context/project.yaml` と `~/.codex-context/projects/index.jsonl` から `projectId` と project context folder を解決する。
+- current project に保存する場合は、`.tkn/codex-context.yaml` と `~/.tkn/codex-context/state/index.jsonl` から `projectId` と project context folder を解決する。
 - `memos/` が存在しない場合は作成する。
 - current project を解決できず、明示的な保存場所もない場合は、保存前にユーザーへ保存場所の指定または project registration を依頼する。
 - `sessions/` や `decisions/` には保存しない。それらが必要な場合は、対応する session / decision Skill を使う。

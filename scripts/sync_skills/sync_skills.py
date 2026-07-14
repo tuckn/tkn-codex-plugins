@@ -23,13 +23,14 @@ DEFAULT_SKILLS = [
     "migrate-local-project-context",
     "organize-brain-dump",
     "promote-global-context",
-    "register-project-context",
+    "init-project-context",
     "record-decision",
     "review-codex-chats",
     "resume-session",
     "review-decisions",
     "use-project-working-root",
 ]
+RENAMED_SKILLS = {"register-project-context": "init-project-context"}
 
 
 def repo_root_from_script() -> Path:
@@ -99,6 +100,11 @@ def sync(args: argparse.Namespace) -> int:
         target_root = platform_path(str(target_path))
         target_skills_root = target_root / Path(str(skills_path).replace("\\", "/"))
         print(f"target {target_name}: {target_skills_root}")
+
+        for old_name, new_name in RENAMED_SKILLS.items():
+            old_path = target_skills_root / old_name
+            if new_name in skills and old_path.exists():
+                print(f"STALE renamed skill (not removed): {old_path} -> {new_name}")
 
         for skill in skills:
             copy_skill(

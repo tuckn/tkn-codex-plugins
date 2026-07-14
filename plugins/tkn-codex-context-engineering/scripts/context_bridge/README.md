@@ -1,99 +1,69 @@
 # Context Bridge Scripts
 
-These scripts connect repository `.codex-context/` context with the user-global Codex context store at `~/.codex-context`.
+These scripts connect a repository marker at `.tkn/codex-context.yaml` with the private Codex context store at `~/.tkn/codex-context`.
 
 They are intentionally explicit. Codex should not silently sync global context into a repository or promote repository content globally.
 
-## Windows and WSL shared store
-
-This repository may be opened by two Codex runtimes:
-
-- Codex CLI running inside WSL.
-- Codex App running as a Windows native app.
-
-Both runtimes should share one physical global context store.
-
-Use the Windows user profile as the physical store:
-
-```text
-%USERPROFILE%\.codex-context
-```
-
-From WSL, expose the same directory as `~/.codex-context` with a symlink:
-
-```bash
-ln -s /mnt/c/Users/<UserName>/.codex-context ~/.codex-context
-```
-
-After this, the paths point to the same content:
-
-```text
-Windows native: %USERPROFILE%\.codex-context
-WSL:            ~/.codex-context -> /mnt/c/Users/<UserName>/.codex-context
-```
-
-Why this is needed:
-
-- On WSL, Python expands `~/.codex-context` from the WSL home, such as `/home/exampleuser/.codex-context`.
-- On Windows native Python, `~/.codex-context` expands from the Windows home, such as `%USERPROFILE%\.codex-context`.
-- Without the symlink, Codex CLI and Codex App may write to different global context stores.
-
-Check from WSL:
-
-```bash
-ls -ld ~/.codex-context /mnt/c/Users/<UserName>/.codex-context
-python3 - <<'PY'
-from pathlib import Path
-print(Path("~/.codex-context").expanduser().resolve())
-PY
-```
-
-The Python output should resolve to:
-
-```text
-/mnt/c/Users/<UserName>/.codex-context
-```
-
-If `~/.codex-context` already exists as a real WSL directory, move its contents into `%USERPROFILE%\.codex-context` first, then replace the WSL directory with the symlink. Do not create two independent stores.
+The root has fixed `config/`, `data/`, and `state/` areas. Scripts accept an explicit root for tests, but their production default is `~/.tkn/codex-context`.
 
 ## Commands
 
 Initialize the global store:
 
-```bash
-python3 <plugin-root>/scripts/context_bridge/context_bridge.py init --target ~/.codex-context --dry-run
-python3 <plugin-root>/scripts/context_bridge/context_bridge.py init --target ~/.codex-context --write
+```powershell
+python <plugin-root>/scripts/context_bridge/context_bridge.py init --dry-run
+python <plugin-root>/scripts/context_bridge/context_bridge.py init --write
 ```
 
-The initialized store includes `projects/index.jsonl`, `projects/<projectId>/`,
-`patterns/`, `skill-candidates/`,
-`agents-candidates/`, and `reviews/` in addition to decisions and candidates.
+The initialized store includes `README.md`, `config/config.yaml`, global context categories
+under `data/`, and `state/index.jsonl`. Project state is stored under `state/<projectId>/`.
 
-Register this repository in the private project registry:
+Preview a non-destructive migration from the legacy flat store:
 
-```bash
-python3 <plugin-root>/scripts/context_bridge/register_project_context.py \
-  --target ~/.codex-context \
-  --repo-root . \
+```powershell
+python <plugin-root>/scripts/context_bridge/context_bridge.py init `
+  --migrate-from ~/.codex-context `
   --dry-run
 ```
 
-Use `--write` to create or update the local `.codex-context/project.yaml`
-marker, index the Codex Project folder in `~/.codex-context/projects/index.jsonl`,
-and create private project context under `~/.codex-context/projects/<projectId>/`.
+To migrate a flat store already located at the production root, pass the same source and
+target. This mode renames entries in place, keeps no backup, and resumes from a temporary
+migration journal if interrupted:
+
+```powershell
+python <plugin-root>/scripts/context_bridge/context_bridge.py init `
+  --target ~/.tkn/codex-context `
+  --migrate-from ~/.tkn/codex-context `
+  --dry-run
+```
+
+Review the dry-run first, then replace `--dry-run` with `--write` to perform the move.
+
+Initialize this repository in the private project registry:
+
+```powershell
+python <plugin-root>/scripts/context_bridge/init_project_context.py `
+  --target ~/.tkn/codex-context `
+  --repo-root . `
+  --dry-run
+```
+
+Use `--write` to create or update `.tkn/codex-context.yaml`, index the Codex
+Project folder in `~/.tkn/codex-context/state/index.jsonl`, and create
+private project state under `~/.tkn/codex-context/state/<projectId>/`.
 
 Load selected global context without writing files:
 
-```bash
-python3 <plugin-root>/scripts/context_bridge/load_global_context.py \
-  --source ~/.codex-context
+```powershell
+python <plugin-root>/scripts/context_bridge/load_global_context.py `
+  --source ~/.tkn/codex-context
 ```
 
 Audit context freshness without changing source context:
 
-```bash
-python3 <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
-  --source .codex-context \
+```powershell
+python <plugin-root>/scripts/context_bridge/audit_context_freshness.py `
+  --source ~/.tkn/codex-context `
   --dry-run
 ```
 
@@ -102,9 +72,9 @@ working root for the current registered project.
 
 Distill a session note into a review candidate:
 
-```bash
-python3 <plugin-root>/scripts/context_bridge/distill_session_context.py \
-  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
+```powershell
+python <plugin-root>/scripts/context_bridge/distill_session_context.py `
+  --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md `
   --dry-run
 ```
 
@@ -113,11 +83,11 @@ the current registered project.
 
 Finalize a reviewed session distillation:
 
-```bash
-python3 <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
-  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
-  --status distilled \
-  --distilled-to ~/.codex-context/projects/<projectId>/decisions/DR-0001-example.md \
+```powershell
+python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py `
+  --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md `
+  --status distilled `
+  --distilled-to ~/.tkn/codex-context/state/<projectId>/decisions/DR-0001-example.md `
   --dry-run
 ```
 
@@ -126,10 +96,10 @@ Use `--write` only after the accepted destination exists, or use
 
 Create a local snapshot of global context:
 
-```bash
-python3 <plugin-root>/scripts/context_bridge/import_context.py \
-  --source ~/.codex-context \
-  --include working-context,decisions,candidates \
+```powershell
+python <plugin-root>/scripts/context_bridge/import_context.py `
+  --source ~/.tkn/codex-context `
+  --include working-context,decisions,candidates `
   --dry-run
 ```
 
@@ -140,12 +110,12 @@ explicitly needed.
 
 Promote a candidate or decision to the global store:
 
-```bash
-python3 <plugin-root>/scripts/context_bridge/promote_context.py \
-  --target ~/.codex-context \
-  --kind candidate \
-  --title "example title" \
-  --body-file _inbox/ai/example.md \
+```powershell
+python <plugin-root>/scripts/context_bridge/promote_context.py `
+  --target ~/.tkn/codex-context `
+  --kind candidate `
+  --title "example title" `
+  --body-file _inbox/ai/example.md `
   --dry-run
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: import-global-context
-description: Load selected user-global Codex context from `~/.codex-context` into the current task, preferably read-only, and create repository snapshots only when explicitly requested. Use when the user asks to load, import, apply, reference, or use global Codex context, other-chat context, or cross-repository Codex context. Project side effects require `.codex-context/project.yaml` to resolve in the private registry; marker creation alone is not a trigger.
+description: Load selected user-global Codex context from `~/.tkn/codex-context` into the current task, preferably read-only, and create repository snapshots only when explicitly requested. Use when the user asks to load, import, apply, reference, or use global Codex context, other-chat context, or cross-repository Codex context. Project side effects require `.tkn/codex-context.yaml` to resolve in the private registry; marker creation alone is not a trigger.
 ---
 
 # Import Global Context
@@ -13,21 +13,21 @@ Default to read-only load. Do not copy global context into the repository unless
 
 This skill runs only when the user asks to load, import, apply, reference, or use global or cross-repository context.
 
-Project registration is required only for current-project context steps, such as checking project `working-context.md` or recording how imported context was used in a project session note. For those steps, `.codex-context/project.yaml` must exist and its `projectId` must resolve through `~/.codex-context/projects/index.jsonl` for the current workspace.
+Project registration is required only for current-project context steps, such as checking project `working-context.md` or recording how imported context was used in a project session note. For those steps, `.tkn/codex-context.yaml` must exist and its `projectId` must resolve through `~/.tkn/codex-context/state/index.jsonl` for the current workspace.
 
 The marker file alone does not trigger global-context loading. If project registration is missing, keep the load read-only and do not create project context records unless the user explicitly asks to register or write project context.
 
 ## Source
 
 ```text
-~/.codex-context
+~/.tkn/codex-context
 ```
 
 This store is private historical context. It does not override current user instructions, system/developer instructions, repository `AGENTS.md`, current files, or git state.
 
 ## Default Workflow
 
-1. Check repository instructions and project `working-context.md` under `~/.codex-context/projects/<projectId>/` when relevant.
+1. Check repository instructions and project `working-context.md` under `~/.tkn/codex-context/state/<projectId>/` when relevant.
 2. Resolve this skill's plugin root and use `../../scripts/context_bridge/load_global_context.py`.
 3. Run read-only load to inspect relevant global context.
 4. Read only specific referenced files when the current task needs them.
@@ -38,14 +38,14 @@ Read-only load:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/load_global_context.py \
-  --source ~/.codex-context
+  --source ~/.tkn/codex-context
 ```
 
 Preview selected files:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/load_global_context.py \
-  --source ~/.codex-context \
+  --source ~/.tkn/codex-context \
   --decision DR-G-example.md \
   --candidate example-candidate.md \
   --pattern example-pattern.md
@@ -67,7 +67,7 @@ Dry-run:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/import_context.py \
-  --source ~/.codex-context \
+  --source ~/.tkn/codex-context \
   --include working-context,decisions,candidates \
   --dry-run
 ```
@@ -76,7 +76,7 @@ Write snapshot:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/import_context.py \
-  --source ~/.codex-context \
+  --source ~/.tkn/codex-context \
   --include working-context,decisions,candidates \
   --write
 ```
@@ -85,7 +85,7 @@ Repository `.codex-context/global-context/` snapshots are allowed only when expl
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/import_context.py \
-  --source ~/.codex-context \
+  --source ~/.tkn/codex-context \
   --dest .codex-context/global-context \
   --include working-context,decisions,candidates \
   --write

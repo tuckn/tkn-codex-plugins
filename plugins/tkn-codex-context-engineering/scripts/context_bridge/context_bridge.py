@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage Codex context registration, loading, auditing, imports, and promotions."""
+"""Manage Codex context initialization, loading, auditing, imports, and promotions."""
 
 from __future__ import annotations
 
@@ -23,6 +23,12 @@ DEFAULT_LOAD_INCLUDE = "working-context,decisions,candidates,patterns,skill-cand
 DEFAULT_FRESHNESS_INCLUDE = (
     "working-context,decisions,sessions,candidates,patterns,skill-candidates,agents-candidates,reviews"
 )
+DEFAULT_CONTEXT_ROOT = "~/.tkn/codex-context"
+LEGACY_CONTEXT_ROOT = "~/.codex-context"
+LOCAL_MARKER = Path(".tkn") / "codex-context.yaml"
+LEGACY_LOCAL_MARKER = Path(".codex-context") / "project.yaml"
+IN_PLACE_JOURNAL_NAME = ".migration-journal.json"
+IN_PLACE_JOURNAL_TEMP_NAME = ".migration-journal.json.tmp"
 DISTILL_REUSABLE_SECTIONS = [
     "important decisions",
     "what worked",
@@ -40,15 +46,17 @@ DISTILL_EVIDENCE_SECTIONS = [
     "changed files",
     "validation",
 ]
-GLOBAL_CONTEXT_DIRS = [
+DATA_CONTEXT_DIRS = [
     "decisions",
     "candidates",
-    "projects",
     "patterns",
     "skill-candidates",
     "agents-candidates",
     "reviews",
+    "session-reviews",
 ]
+PROJECT_STATE_DIRS = ["sessions", "decisions", "memos"]
+CONFIG_TEXT = "schemaVersion: 1\n"
 SECRET_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"(?i)\b(api[_-]?key|secret|token|password)\b\s*[:=]\s*['\"]?[A-Za-z0-9_./+=-]{16,}"),
@@ -100,6 +108,40 @@ def now_iso() -> str:
 
 def expand(path: str | Path) -> Path:
     return Path(path).expanduser().resolve()
+
+
+def expand_store_root(path: str | Path) -> Path:
+    """Expand a store path without resolving a user-facing junction or symlink."""
+    return Path(path).expanduser().absolute()
+
+
+def config_path(root: Path) -> Path:
+    return root / "config" / "config.yaml"
+
+
+def data_root(root: Path) -> Path:
+    return root / "data"
+
+
+def state_root(root: Path) -> Path:
+    return root / "state"
+
+
+def registry_path(root: Path) -> Path:
+    return state_root(root) / "index.jsonl"
+
+
+def project_state_path(root: Path, project_id_value: str) -> Path:
+    return state_root(root) / project_id_value
+
+
+def is_versioned_store(root: Path) -> bool:
+    return config_path(root).exists() or (root / "data").exists() or (root / "state").exists()
+
+
+def global_data_source(root: Path) -> Path:
+    """Resolve a v0.6 store root to data/, while retaining explicit flat legacy reads."""
+    return data_root(root) if is_versioned_store(root) else root
 
 
 def current_repo_root() -> Path:
@@ -359,10 +401,14 @@ def validate_distilled_to_ref(value: str) -> str:
         raise SystemExit(f"Refusing UNC distilledTo path: {value}")
     if ref.startswith("/"):
         raise SystemExit(f"Refusing absolute distilledTo path: {value}")
-    allowed_home_refs = ("~/.codex-context/", "~/.codex-working/")
+    allowed_home_refs = (
+        "~/.tkn/codex-context/",
+        "~/.codex-context/",  # Legacy refs may be preserved while finalizing migrated sessions.
+        "~/.codex-working/",
+    )
     if ref == "~" or (ref.startswith("~/") and not ref.startswith(allowed_home_refs)):
         raise SystemExit(
-            "Only ~/.codex-context or ~/.codex-working paths are allowed "
+            "Only ~/.tkn/codex-context or ~/.codex-working paths are allowed "
             f"for home-relative distilledTo refs: {value}"
         )
     if ref == ".." or ref.startswith("../") or "/../" in ref:
@@ -728,6 +774,13 @@ def write_text(path: Path, text: str, write: bool, result: Result, overwrite: bo
         path.write_text(text, encoding="utf-8")
 
 
+def write_text_atomic(path: Path, text: str) -> None:
+    temp_path = path.with_name(f".{path.name}.tmp-{uuid.uuid4().hex}")
+    temp_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path.write_text(text, encoding="utf-8")
+    temp_path.replace(path)
+
+
 def ensure_dir(path: Path, write: bool, result: Result) -> None:
     result.add("mkdir", str(path))
     if write:
@@ -746,6 +799,42 @@ def copy_file(src: Path, dest: Path, write: bool, result: Result) -> None:
     if write:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
+
+
+def plan_non_destructive_copies(
+    mappings: Iterable[tuple[Path, Path]],
+    result: Result,
+) -> list[tuple[Path, Path]]:
+    planned: list[tuple[Path, Path]] = []
+    for source, destination in mappings:
+        if not source.exists():
+            continue
+        source_files = [source] if source.is_file() else sorted(path for path in source.rglob("*") if path.is_file())
+        for source_file in source_files:
+            relative = Path(source_file.name) if source.is_file() else source_file.relative_to(source)
+            destination_file = destination if source.is_file() else destination / relative
+            if destination_file.exists():
+                if source_file.read_bytes() == destination_file.read_bytes():
+                    result.add("skip-identical", str(destination_file))
+                    continue
+                raise SystemExit(
+                    "Migration destination already exists with different content: "
+                    f"{destination_file}"
+                )
+            result.add("copy", f"{source_file} -> {destination_file}")
+            planned.append((source_file, destination_file))
+    return planned
+
+
+def execute_non_destructive_copies(
+    planned: Iterable[tuple[Path, Path]],
+    write: bool,
+) -> None:
+    if not write:
+        return
+    for source, destination in planned:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
 
 
 def list_selected_files(folder: Path, selected: Iterable[str] | None) -> list[Path]:
@@ -1084,29 +1173,30 @@ def write_registry_record(index_path: Path, record: dict[str, object], write: bo
 
 
 def registered_current_project_id(repo_root: Path, result: Result) -> str:
-    local_project_path = repo_root / ".codex-context" / "project.yaml"
+    local_project_path = repo_root / LOCAL_MARKER
     if not local_project_path.exists():
         raise SystemExit(
-            "Default context-bridge output requires .codex-context/project.yaml. "
-            "Pass --dest or --report-dest explicitly, or register the project first."
+            "Default context-bridge output requires .tkn/codex-context.yaml. "
+            "Pass --dest or --report-dest explicitly, or initialize the project first."
         )
     local_project_text = local_project_path.read_text(encoding="utf-8", errors="replace")
     local_project_id = yaml_value(local_project_text, "projectId")
     if not local_project_id:
         raise SystemExit(
-            "Default context-bridge output requires projectId in .codex-context/project.yaml. "
-            "Pass --dest or --report-dest explicitly, or register the project first."
+            "Default context-bridge output requires projectId in .tkn/codex-context.yaml. "
+            "Pass --dest or --report-dest explicitly, or initialize the project first."
         )
 
-    registry_path = Path.home() / ".codex-context" / "projects" / "index.jsonl"
-    if not registry_path.exists():
+    index_path = registry_path(expand_store_root(DEFAULT_CONTEXT_ROOT))
+    if not index_path.exists():
         raise SystemExit(
-            "Default context-bridge output requires ~/.codex-context/projects/index.jsonl. "
-            "Pass --dest or --report-dest explicitly, or register the project first."
+            "Default context-bridge output requires "
+            "~/.tkn/codex-context/state/index.jsonl. "
+            "Pass --dest or --report-dest explicitly, or initialize the project first."
         )
 
     current_root = normalize_registry_path(repo_root)
-    records = read_jsonl(registry_path, result)
+    records = read_jsonl(index_path, result)
     for record in records:
         if record.get("projectId") != local_project_id:
             continue
@@ -1115,8 +1205,9 @@ def registered_current_project_id(repo_root: Path, result: Result) -> str:
 
     raise SystemExit(
         "Default context-bridge output requires the current workspace to resolve in "
-        "~/.codex-context/projects/index.jsonl. Pass --dest or --report-dest explicitly, "
-        "or refresh project registration first."
+        "~/.tkn/codex-context/state/index.jsonl. "
+        "Pass --dest or --report-dest explicitly, "
+        "or refresh project initialization first."
     )
 
 
@@ -1128,31 +1219,64 @@ def default_context_bridge_dest(kind: str, result: Result) -> Path:
     return dest.resolve()
 
 
-def register_project(args: argparse.Namespace) -> Result:
-    target = expand(args.target)
+def initialize_store_layout(
+    target: Path,
+    write: bool,
+    result: Result,
+    *,
+    create_index: bool = True,
+    create_working_context: bool = True,
+    create_readme: bool = True,
+) -> None:
+    ensure_dir(target / "config", write, result)
+    ensure_dir(data_root(target), write, result)
+    ensure_dir(state_root(target), write, result)
+    write_text(config_path(target), CONFIG_TEXT, write, result)
+    for rel in DATA_CONTEXT_DIRS:
+        ensure_dir(data_root(target) / rel, write, result)
+    if create_index:
+        write_text(registry_path(target), "", write, result)
+    if create_working_context:
+        write_text(data_root(target) / "working-context.md", global_working_context(), write, result)
+    if create_readme:
+        write_text(target / "README.md", store_readme(), write, result)
+
+
+def init_project(args: argparse.Namespace) -> Result:
+    target = expand_store_root(args.target)
     repo_root = expand(args.repo_root)
     now = now_iso()
     result = Result()
 
-    for rel in GLOBAL_CONTEXT_DIRS:
-        ensure_dir(target / rel, args.write, result)
-    registry_path = target / "projects" / "index.jsonl"
-    write_text(registry_path, "", args.write, result)
-    write_text(target / "README.md", global_readme(), args.write, result)
-    write_text(target / "working-context.md", global_working_context(), args.write, result)
+    initialize_store_layout(target, args.write, result)
+    index_path = registry_path(target)
 
-    local_project_path = repo_root / ".codex-context" / "project.yaml"
+    local_project_path = repo_root / LOCAL_MARKER
+    legacy_local_project_path = repo_root / LEGACY_LOCAL_MARKER
     existing_local_project_text = ""
     if local_project_path.exists():
         existing_local_project_text = local_project_path.read_text(encoding="utf-8", errors="replace")
+    elif legacy_local_project_path.exists():
+        existing_local_project_text = legacy_local_project_path.read_text(encoding="utf-8", errors="replace")
+        result.add("legacy-marker", str(legacy_local_project_path))
     local_project_id = yaml_value(existing_local_project_text, "projectId")
     remote = git_value(repo_root, "config", "--get", "remote.origin.url")
     display = remote_display(remote)
     remote_identity = display or remote
     repo_id_from_remote = f"repo_{short_hash(remote_identity)}" if remote_identity else ""
-    records = read_jsonl(registry_path, result)
+    records = read_jsonl(index_path, result)
+    legacy_root = expand(LEGACY_CONTEXT_ROOT)
+    legacy_index_path = legacy_root / "projects" / "index.jsonl"
+    legacy_records = read_jsonl(legacy_index_path, result)
+    selection_records = [*records]
+    known_workspaces = {str(record.get("workspaceId") or "") for record in selection_records}
+    selection_records.extend(
+        record
+        for record in legacy_records
+        if str(record.get("workspaceId") or "") not in known_workspaces
+    )
     selected_record, project_reason, repo_record_count = select_project_record(
-        records,
+        selection_records,
         repo_root,
         repo_id_from_remote,
         local_project_id,
@@ -1167,18 +1291,33 @@ def register_project(args: argparse.Namespace) -> Result:
     repo_id = repo_id_from_remote or repo_id_from_remote_or_record("", selected_record)
     status = args.status
     sensitivity = args.sensitivity
-    project_context_path = target / "projects" / project_id_value
+    project_context_path = project_state_path(target, project_id_value)
     working_context_path = project_context_path / "working-context.md"
     sessions_path = project_context_path / "sessions"
     decisions_path = project_context_path / "decisions"
+    memos_path = project_context_path / "memos"
     local_seed_path = repo_root / ".codex-context" / "working-context.md"
 
+    legacy_project_context_path = legacy_root / "projects" / project_id_value
+    should_copy_legacy_project = not any(
+        record.get("projectId") == project_id_value for record in records
+    )
+    planned_copies = plan_non_destructive_copies(
+        [(legacy_project_context_path, project_context_path)] if should_copy_legacy_project else [],
+        result,
+    )
+    execute_non_destructive_copies(planned_copies, args.write)
+
     ensure_dir(project_context_path, args.write, result)
-    ensure_dir(sessions_path, args.write, result)
-    ensure_dir(decisions_path, args.write, result)
+    for path in (sessions_path, decisions_path, memos_path):
+        ensure_dir(path, args.write, result)
 
     if working_context_path.exists():
         existing_text = working_context_path.read_text(encoding="utf-8", errors="replace")
+    elif (legacy_project_context_path / "working-context.md").exists():
+        existing_text = (legacy_project_context_path / "working-context.md").read_text(
+            encoding="utf-8", errors="replace"
+        )
     elif local_seed_path.exists():
         existing_text = local_seed_path.read_text(encoding="utf-8", errors="replace")
         result.add("seed", f"{local_seed_path} -> {working_context_path}")
@@ -1209,7 +1348,7 @@ def register_project(args: argparse.Namespace) -> Result:
 
     if project_reason == "new-project-local-conflict":
         result.warn(
-            f"creating a new projectId because local project.yaml projectId {local_project_id} "
+            f"creating a new projectId because local marker projectId {local_project_id} "
             "is already registered to an existing root or multiple registry records"
         )
     elif project_reason == "new-project" and repo_record_count:
@@ -1232,40 +1371,19 @@ def register_project(args: argparse.Namespace) -> Result:
         "workingContextPath": working_context_path.as_posix(),
         "sessionsPath": sessions_path.as_posix(),
         "decisionsPath": decisions_path.as_posix(),
+        "memosPath": memos_path.as_posix(),
         "lastSeenAt": now,
         "status": status,
         "sensitivity": sensitivity,
     }
-    write_registry_record(registry_path, registry_record, args.write, result)
+    write_registry_record(index_path, registry_record, args.write, result)
     return result
 
 
-def global_readme() -> str:
-    return f"""# Codex Global Context
-
-This directory stores user-global Codex context.
-
-It is not Codex configuration. Keep generated context here, and keep `~/.codex` focused on Codex settings.
-This store is intended to be private.
-
-## Structure
-
-- `working-context.md`: lightweight user-global current truth.
-- `decisions/`: accepted global or user-level decisions.
-- `candidates/`: useful context that is not accepted as a decision yet.
-- `projects/index.jsonl`: registry of local Codex project workspaces.
-- `projects/<projectId>/`: private project context folder with `working-context.md`, `sessions/`, and `decisions/`.
-- `patterns/`: reusable cross-project patterns.
-- `skill-candidates/`: candidates for reusable Skills or Plugins.
-- `agents-candidates/`: candidates for global or repository AGENTS.md guidance.
-- `reviews/`: explicit global context review outputs.
-
-## Safety
-
-Do not store secrets, credentials, tokens, private keys, full env vars, large logs, or unnecessary personal/customer data here.
-
-Created: {now_iso()}
-"""
+def register_project_alias(args: argparse.Namespace) -> Result:
+    result = init_project(args)
+    result.warn("register-project is deprecated; use init-project")
+    return result
 
 
 def global_working_context() -> str:
@@ -1292,16 +1410,16 @@ This file is the lightweight dashboard for user-global Codex context.
 
 ## Current Truth
 
-- Global Codex context is stored in `~/.codex-context`.
+- Global Codex context is stored in `~/.tkn/codex-context/data`.
 - Generated context is kept separate from Codex configuration in `~/.codex`.
-- Project working contexts are stored in `projects/<projectId>/`; Codex project folders are tracked in `projects/index.jsonl`.
+- Project working contexts are stored in `state/<projectId>/`; Codex project folders are tracked in `state/index.jsonl`.
 - Repositories should load selected global context read-only by default.
 - Repository snapshots should go under the private Codex working root unless explicitly requested elsewhere.
 - Snapshot global context is historical reference, not an override for repository rules or current user instructions.
 
 ## Active Work
 
-- Establish explicit bridges for repository context registration, import, and promotion.
+- Establish explicit bridges for project initialization, context import, and promotion.
 
 ## Important Constraints
 
@@ -1312,10 +1430,11 @@ This file is the lightweight dashboard for user-global Codex context.
 
 ## Key Files
 
-- `projects/index.jsonl`
-- `projects/<projectId>/working-context.md`
-- `projects/<projectId>/sessions/`
-- `projects/<projectId>/decisions/`
+- `../state/index.jsonl`
+- `../state/<projectId>/working-context.md`
+- `../state/<projectId>/sessions/`
+- `../state/<projectId>/decisions/`
+- `../state/<projectId>/memos/`
 - `decisions/`
 - `candidates/`
 - `patterns/`
@@ -1327,7 +1446,7 @@ This file is the lightweight dashboard for user-global Codex context.
 def repo_global_readme() -> str:
     return f"""# Imported Global Context
 
-This folder contains selected context imported from `~/.codex-context`.
+This folder contains selected context imported from `~/.tkn/codex-context/data`.
 
 Imported context is a historical snapshot reference. It does not override:
 
@@ -1345,25 +1464,431 @@ Created: {now_iso()}
 """
 
 
+def store_readme() -> str:
+    return """# Codex Global Context
+
+This directory stores private user-global and project Codex context. It is not Codex configuration.
+
+## Structure
+
+- `config/config.yaml`: store schema version.
+- `data/working-context.md`: user-global working context dashboard.
+- `data/decisions/`, `data/candidates/`, and related folders: reusable global context.
+- `state/index.jsonl`: project registry.
+- `state/<projectId>/`: project working context, sessions, decisions, and memos.
+
+## Safety
+
+Do not store secrets, credentials, tokens, private keys, full environment variables, large logs, or unnecessary personal or customer data here.
+"""
+
+
+def migrated_registry_record(record: dict[str, object], target: Path) -> dict[str, object]:
+    migrated = dict(record)
+    project_id_value = str(record.get("projectId") or "")
+    if not project_id_value:
+        return migrated
+    project_path = project_state_path(target, project_id_value)
+    migrated.update({
+        "projectContextPath": project_path.as_posix(),
+        "workingContextPath": (project_path / "working-context.md").as_posix(),
+        "sessionsPath": (project_path / "sessions").as_posix(),
+        "decisionsPath": (project_path / "decisions").as_posix(),
+        "memosPath": (project_path / "memos").as_posix(),
+    })
+    return migrated
+
+
+def read_jsonl_strict(path: Path) -> list[dict[str, object]]:
+    if not path.is_file():
+        raise SystemExit(f"Required registry does not exist: {path}")
+    records: list[dict[str, object]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"Invalid registry JSON at {path}:{line_number}: {exc}") from exc
+        if not isinstance(value, dict):
+            raise SystemExit(f"Registry record must be an object at {path}:{line_number}")
+        records.append(value)
+    return records
+
+
+def validate_project_registry(index_path: Path, projects_path: Path) -> list[dict[str, object]]:
+    records = read_jsonl_strict(index_path)
+    project_ids = [str(record.get("projectId") or "") for record in records]
+    workspace_ids = [str(record.get("workspaceId") or "") for record in records]
+    if any(not value for value in project_ids):
+        raise SystemExit(f"Every registry record must have projectId: {index_path}")
+    if any(not value for value in workspace_ids):
+        raise SystemExit(f"Every registry record must have workspaceId: {index_path}")
+    if len(set(project_ids)) != len(project_ids):
+        raise SystemExit(f"Duplicate projectId in registry: {index_path}")
+    if len(set(workspace_ids)) != len(workspace_ids):
+        raise SystemExit(f"Duplicate workspaceId in registry: {index_path}")
+
+    project_dirs = {path.name for path in projects_path.iterdir() if path.is_dir()}
+    unexpected_files = [
+        path.name
+        for path in projects_path.iterdir()
+        if path.is_file() and path.resolve() != index_path.resolve()
+    ]
+    if unexpected_files:
+        raise SystemExit(
+            "Unexpected files beside the project registry: " + ", ".join(sorted(unexpected_files))
+        )
+    if set(project_ids) != project_dirs:
+        missing = sorted(set(project_ids) - project_dirs)
+        unindexed = sorted(project_dirs - set(project_ids))
+        raise SystemExit(
+            "Project registry and folders do not match. "
+            f"missing folders={missing}; unindexed folders={unindexed}"
+        )
+    return records
+
+
+def rename_path(source: Path, destination: Path) -> None:
+    source.rename(destination)
+
+
+def in_place_journal_path(root: Path) -> Path:
+    return root / IN_PLACE_JOURNAL_NAME
+
+
+def save_in_place_journal(root: Path, journal: dict[str, object]) -> None:
+    journal_path = in_place_journal_path(root)
+    temp_path = root / IN_PLACE_JOURNAL_TEMP_NAME
+    temp_path.write_text(
+        json.dumps(journal, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temp_path.replace(journal_path)
+
+
+def load_in_place_journal(root: Path) -> dict[str, object] | None:
+    journal_path = in_place_journal_path(root)
+    if not journal_path.exists():
+        return None
+    try:
+        value = json.loads(journal_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid in-place migration journal: {journal_path}: {exc}") from exc
+    if not isinstance(value, dict) or value.get("schemaVersion") != 1:
+        raise SystemExit(f"Unsupported in-place migration journal: {journal_path}")
+    return value
+
+
+def in_place_migration_moves(root: Path) -> list[dict[str, object]]:
+    moves: list[dict[str, object]] = []
+    for rel in ["working-context.md", *DATA_CONTEXT_DIRS]:
+        if (root / rel).exists():
+            moves.append({"source": rel, "destination": f"data/{rel}", "done": False})
+    if (root / "projects").exists():
+        moves.append({"source": "projects", "destination": "state", "done": False})
+    return moves
+
+
+def validate_fresh_in_place_source(root: Path, result: Result) -> list[dict[str, object]]:
+    if not root.is_dir():
+        raise SystemExit(f"Migration source does not exist: {root}")
+
+    legacy_names = {"README.md", "working-context.md", "projects", *DATA_CONTEXT_DIRS}
+    internal_names = {IN_PLACE_JOURNAL_NAME, IN_PLACE_JOURNAL_TEMP_NAME}
+    unknown = sorted(path.name for path in root.iterdir() if path.name not in legacy_names | internal_names)
+    if unknown:
+        raise SystemExit(
+            "In-place migration requires an unmixed legacy root; unexpected entries: "
+            + ", ".join(unknown)
+        )
+
+    projects_path = root / "projects"
+    if not projects_path.is_dir():
+        raise SystemExit(f"Legacy projects directory does not exist: {projects_path}")
+    records = validate_project_registry(projects_path / "index.jsonl", projects_path)
+    file_count = sum(1 for path in root.rglob("*") if path.is_file())
+    result.add(
+        "preflight",
+        f"{file_count} files, {len(records)} registry records, {len(records)} project folders",
+    )
+    return records
+
+
+def normalize_migrated_working_context(text: str) -> str:
+    return text.replace(
+        "Global Codex context is stored in `~/.codex-context`.",
+        "Global Codex context is stored in `~/.tkn/codex-context/data`.",
+    )
+
+
+def rollback_in_place_moves(root: Path, moves: list[dict[str, object]], result: Result) -> None:
+    for move in reversed(moves):
+        source = root / str(move["source"])
+        destination = root / str(move["destination"])
+        if destination.exists() and not source.exists():
+            source.parent.mkdir(parents=True, exist_ok=True)
+            rename_path(destination, source)
+            result.add("rollback", f"{destination} -> {source}")
+    data_path = data_root(root)
+    if data_path.exists() and not any(data_path.iterdir()):
+        data_path.rmdir()
+    for path in [root / IN_PLACE_JOURNAL_TEMP_NAME, in_place_journal_path(root)]:
+        if path.exists():
+            path.unlink()
+
+
+def complete_in_place_layout(
+    root: Path,
+    records: list[dict[str, object]],
+    write: bool,
+    result: Result,
+) -> None:
+    initialize_store_layout(
+        root,
+        write,
+        result,
+        create_index=not registry_path(root).exists(),
+        create_working_context=not (data_root(root) / "working-context.md").exists(),
+        create_readme=False,
+    )
+    for record in records:
+        project_id_value = str(record["projectId"])
+        project_path = project_state_path(root, project_id_value)
+        for rel in PROJECT_STATE_DIRS:
+            ensure_dir(project_path / rel, write, result)
+        if not (project_path / "working-context.md").exists():
+            write_text(
+                project_path / "working-context.md",
+                render_minimal_working_context(
+                    title=str(record.get("title") or project_id_value),
+                    project_id=project_id_value,
+                    updated=now_iso(),
+                ),
+                write,
+                result,
+            )
+
+
+def verify_in_place_migration(root: Path, expected_count: int) -> None:
+    records = validate_project_registry(registry_path(root), state_root(root))
+    if len(records) != expected_count:
+        raise SystemExit(
+            f"Registry record count changed during migration: expected {expected_count}, got {len(records)}"
+        )
+    for record in records:
+        expected = migrated_registry_record(record, root)
+        for field in [
+            "projectContextPath",
+            "workingContextPath",
+            "sessionsPath",
+            "decisionsPath",
+            "memosPath",
+        ]:
+            if record.get(field) != expected.get(field):
+                raise SystemExit(f"Registry path verification failed for {field}: {record.get('projectId')}")
+    if (data_root(root) / "promoted").exists():
+        raise SystemExit("Unexpected data/promoted directory after migration")
+    if (root / "projects").exists() or (root / "working-context.md").exists():
+        raise SystemExit("Legacy root entries remain after migration")
+    allowed = {"config", "data", "state", "README.md", IN_PLACE_JOURNAL_NAME, IN_PLACE_JOURNAL_TEMP_NAME}
+    unexpected = sorted(path.name for path in root.iterdir() if path.name not in allowed)
+    if unexpected:
+        raise SystemExit("Unexpected root entries after migration: " + ", ".join(unexpected))
+
+
+def migrate_legacy_store_in_place(root: Path, write: bool, result: Result) -> None:
+    journal = load_in_place_journal(root)
+    if journal is None and is_versioned_store(root):
+        legacy_entries = [root / "projects", root / "working-context.md"] + [root / rel for rel in DATA_CONTEXT_DIRS]
+        if any(path.exists() for path in legacy_entries):
+            raise SystemExit("In-place migration found a mixed legacy and versioned store without a journal.")
+        initialize_store_layout(root, write, result)
+        result.add("skip-versioned", str(root))
+        return
+
+    if journal is None:
+        records = validate_fresh_in_place_source(root, result)
+        moves = in_place_migration_moves(root)
+        journal = {
+            "schemaVersion": 1,
+            "phase": "moving",
+            "moves": moves,
+            "recordCount": len(records),
+        }
+    else:
+        moves_value = journal.get("moves")
+        if not isinstance(moves_value, list) or not all(isinstance(item, dict) for item in moves_value):
+            raise SystemExit(f"Invalid move list in {in_place_journal_path(root)}")
+        moves = moves_value
+        result.add("resume", f"in-place migration phase {journal.get('phase', 'unknown')}")
+
+    for move in moves:
+        source = root / str(move["source"])
+        destination = root / str(move["destination"])
+        resolved_root = root.resolve()
+        if not source.resolve().is_relative_to(resolved_root) or not destination.resolve().is_relative_to(resolved_root):
+            raise SystemExit("In-place migration journal contains a path outside the store root.")
+        if source.exists() and destination.exists():
+            raise SystemExit(f"In-place migration destination conflict: {destination}")
+        if not source.exists() and not destination.exists():
+            raise SystemExit(f"In-place migration source and destination are both missing: {source}")
+        result.add("move", f"{source} -> {destination}")
+
+    if not write:
+        result.add("rewrite", str(root / "projects" / "index.jsonl"))
+        result.add("rewrite", str(root / "README.md"))
+        return
+
+    if not in_place_journal_path(root).exists():
+        save_in_place_journal(root, journal)
+
+    try:
+        data_root(root).mkdir(exist_ok=True)
+        for move in moves:
+            source = root / str(move["source"])
+            destination = root / str(move["destination"])
+            if source.exists() and not destination.exists():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                rename_path(source, destination)
+                move["done"] = True
+                save_in_place_journal(root, journal)
+            elif destination.exists() and not source.exists():
+                move["done"] = True
+    except Exception:
+        rollback_in_place_moves(root, moves, result)
+        raise
+
+    current_index = registry_path(root)
+    records = validate_project_registry(current_index, state_root(root))
+    expected_count = int(journal.get("recordCount", len(records)))
+    migrated_records = [migrated_registry_record(record, root) for record in records]
+    registry_text = "".join(
+        f"{json.dumps(record, ensure_ascii=False, sort_keys=True)}\n" for record in migrated_records
+    )
+    working_context_path = data_root(root) / "working-context.md"
+    working_context_text = (
+        normalize_migrated_working_context(working_context_path.read_text(encoding="utf-8"))
+        if working_context_path.exists()
+        else global_working_context()
+    )
+
+    journal["phase"] = "committing"
+    save_in_place_journal(root, journal)
+    write_text_atomic(current_index, registry_text)
+    write_text_atomic(working_context_path, working_context_text)
+    write_text_atomic(root / "README.md", store_readme())
+    result.add("rewrite", str(current_index))
+    result.add("rewrite", str(working_context_path))
+    result.add("rewrite", str(root / "README.md"))
+
+    complete_in_place_layout(root, migrated_records, True, result)
+    verify_in_place_migration(root, expected_count)
+    for path in [root / IN_PLACE_JOURNAL_TEMP_NAME, in_place_journal_path(root)]:
+        if path.exists():
+            path.unlink()
+    result.add("migrated-in-place", str(root))
+
+
+def migrate_legacy_store(source: Path, target: Path, write: bool, result: Result) -> None:
+    if not source.exists():
+        raise SystemExit(f"Migration source does not exist: {source}")
+
+    mappings: list[tuple[Path, Path]] = [
+        (source / "working-context.md", data_root(target) / "working-context.md"),
+    ]
+    mappings.extend((source / rel, data_root(target) / rel) for rel in DATA_CONTEXT_DIRS)
+    legacy_projects = source / "projects"
+    if legacy_projects.exists():
+        mappings.extend(
+            (project_dir, project_state_path(target, project_dir.name))
+            for project_dir in sorted(legacy_projects.iterdir())
+            if project_dir.is_dir()
+        )
+
+    planned_copies = plan_non_destructive_copies(mappings, result)
+
+    old_index = source / "projects" / "index.jsonl"
+    old_records = [migrated_registry_record(record, target) for record in read_jsonl(old_index, result)]
+    new_index = registry_path(target)
+    existing_records = read_jsonl(new_index, result)
+    by_workspace = {str(record.get("workspaceId") or ""): record for record in existing_records}
+    merged_records = [*existing_records]
+    for record in old_records:
+        workspace = str(record.get("workspaceId") or "")
+        existing = by_workspace.get(workspace)
+        if existing is not None:
+            if existing == record:
+                result.add("skip-identical", f"registry workspace {workspace}")
+                continue
+            raise SystemExit(
+                "Migration registry destination already contains a different record for "
+                f"workspaceId {workspace or '(empty)'}"
+            )
+        merged_records.append(record)
+        by_workspace[workspace] = record
+
+    registry_text = "".join(
+        f"{json.dumps(record, ensure_ascii=False, sort_keys=True)}\n"
+        for record in merged_records
+    )
+    execute_non_destructive_copies(planned_copies, write)
+    for record in old_records:
+        project_id_value = str(record.get("projectId") or "")
+        if not project_id_value:
+            continue
+        project_path = project_state_path(target, project_id_value)
+        ensure_dir(project_path, write, result)
+        for rel in PROJECT_STATE_DIRS:
+            ensure_dir(project_path / rel, write, result)
+        legacy_working_context = source / "projects" / project_id_value / "working-context.md"
+        if not legacy_working_context.exists():
+            write_text(
+                project_path / "working-context.md",
+                render_minimal_working_context(
+                    title=str(record.get("title") or project_id_value),
+                    project_id=project_id_value,
+                    updated=now_iso(),
+                ),
+                write,
+                result,
+            )
+    write_text(new_index, registry_text, write, result, overwrite=True)
+
+
 def init_store(args: argparse.Namespace) -> Result:
-    target = expand(args.target)
+    target = expand_store_root(args.target)
     result = Result()
-    for rel in GLOBAL_CONTEXT_DIRS:
-        ensure_dir(target / rel, args.write, result)
-    write_text(target / "projects" / "index.jsonl", "", args.write, result)
-    write_text(target / "README.md", global_readme(), args.write, result)
-    write_text(target / "working-context.md", global_working_context(), args.write, result)
+    migrate_from = expand_store_root(args.migrate_from) if args.migrate_from else None
+    if migrate_from and migrate_from == target:
+        migrate_legacy_store_in_place(target, args.write, result)
+        return result
+
+    initialize_store_layout(
+        target,
+        args.write,
+        result,
+        create_index=not migrate_from,
+        create_working_context=not migrate_from,
+    )
+    if migrate_from:
+        migrate_legacy_store(migrate_from, target, args.write, result)
+        if not (migrate_from / "working-context.md").exists():
+            write_text(data_root(target) / "working-context.md", global_working_context(), args.write, result)
+        if not (migrate_from / "projects" / "index.jsonl").exists():
+            write_text(registry_path(target), "", args.write, result)
     return result
 
 
 def import_context(args: argparse.Namespace) -> Result:
-    source = expand(args.source)
+    source_root = expand_store_root(args.source)
+    source = global_data_source(source_root)
     include = parse_include(args.include)
     result = Result()
     dest = expand(args.dest) if args.dest else default_context_bridge_dest("global-context", result)
 
-    if not source.exists():
-        raise SystemExit(f"Source does not exist: {source}")
+    if not source_root.exists():
+        raise SystemExit(f"Source does not exist: {source_root}")
 
     for rel in ["decisions", "candidates", "imports"]:
         ensure_dir(dest / rel, args.write, result)
@@ -1398,12 +1923,13 @@ def import_context(args: argparse.Namespace) -> Result:
 
 
 def load_context(args: argparse.Namespace) -> Result:
-    source = expand(args.source)
+    source_root = expand_store_root(args.source)
+    source = global_data_source(source_root)
     include = parse_load_include(args.include)
     result = Result()
 
-    if not source.exists():
-        raise SystemExit(f"Source does not exist: {source}")
+    if not source_root.exists():
+        raise SystemExit(f"Source does not exist: {source_root}")
 
     result.add("source", str(source))
     result.add("mode", "read-only load; no files are written")
@@ -1434,14 +1960,19 @@ def load_context(args: argparse.Namespace) -> Result:
 
 
 def audit_freshness(args: argparse.Namespace) -> Result:
-    source = expand(args.source)
+    source_root = expand_store_root(args.source)
+    source = global_data_source(source_root) if is_versioned_store(source_root) else source_root
     include = parse_freshness_include(args.include)
     result = Result()
 
-    if not source.exists():
-        raise SystemExit(f"Source does not exist: {source}")
+    if not source_root.exists():
+        raise SystemExit(f"Source does not exist: {source_root}")
 
-    scope = freshness_scope(source, args.scope)
+    scope = (
+        "global"
+        if args.scope == "auto" and is_versioned_store(source_root)
+        else freshness_scope(source, args.scope)
+    )
     now = datetime.now(JST)
     items = [
         assess_freshness_file(source, category, path, args, now)
@@ -1585,7 +2116,8 @@ state before use.
 
 
 def promote_context(args: argparse.Namespace) -> Result:
-    target = expand(args.target)
+    target = expand_store_root(args.target)
+    target_data = data_root(target)
     body_file = expand(args.body_file)
     if not body_file.exists():
         raise SystemExit(f"Body file does not exist: {body_file}")
@@ -1596,11 +2128,7 @@ def promote_context(args: argparse.Namespace) -> Result:
     body = strip_frontmatter(raw_body)
 
     result = Result()
-    for rel in GLOBAL_CONTEXT_DIRS:
-        ensure_dir(target / rel, args.write, result)
-    write_text(target / "projects" / "index.jsonl", "", args.write, result)
-    write_text(target / "README.md", global_readme(), args.write, result)
-    write_text(target / "working-context.md", global_working_context(), args.write, result)
+    initialize_store_layout(target, args.write, result)
 
     updated = now_iso()
     ref = source_ref(body_file)
@@ -1617,7 +2145,7 @@ Updated: {updated}
 
 {body.strip()}
 """
-        path = target / "working-context.md"
+        path = target_data / "working-context.md"
         result.add("append", str(path))
         if args.write:
             existing = path.read_text(encoding="utf-8") if path.exists() else global_working_context()
@@ -1628,7 +2156,7 @@ Updated: {updated}
     prefix = "DR-G" if args.kind == "decision" else now_compact()
     name = f"{prefix}-{slugify(args.title)}.md"
     folder = "decisions" if args.kind == "decision" else "candidates"
-    path = target / folder / name
+    path = target_data / folder / name
     content_type = "globalDecision" if args.kind == "decision" else "globalCandidate"
     status = "accepted" if args.kind == "decision" else "proposed"
     review_status = "accepted" if args.kind == "decision" else "reviewing"
@@ -1674,15 +2202,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    init = sub.add_parser("init", help="initialize ~/.codex-context")
-    init.add_argument("--target", default="~/.codex-context")
+    init = sub.add_parser("init", help="initialize the versioned Codex context store")
+    init.add_argument("--target", default=DEFAULT_CONTEXT_ROOT)
+    init.add_argument(
+        "--migrate-from",
+        help=(
+            "legacy flat store to migrate into config/data/state; a different source is copied "
+            "non-destructively, while source == target moves entries in place without a backup"
+        ),
+    )
     init.add_argument("--dry-run", action="store_true")
     init.add_argument("--write", action="store_true")
     init.add_argument("--log")
     init.set_defaults(func=init_store)
 
     read = sub.add_parser("import", help="import global context into a repository")
-    read.add_argument("--source", default="~/.codex-context")
+    read.add_argument("--source", default=DEFAULT_CONTEXT_ROOT)
     read.add_argument(
         "--dest",
         help=(
@@ -1700,7 +2235,7 @@ def build_parser() -> argparse.ArgumentParser:
     read.set_defaults(func=import_context)
 
     load = sub.add_parser("load", help="read selected global context without writing files")
-    load.add_argument("--source", default="~/.codex-context")
+    load.add_argument("--source", default=DEFAULT_CONTEXT_ROOT)
     load.add_argument("--include", default=DEFAULT_LOAD_INCLUDE)
     load.add_argument("--decision", action="append", help="specific decision markdown filename to preview")
     load.add_argument("--candidate", action="append", help="specific candidate markdown filename to preview")
@@ -1711,7 +2246,7 @@ def build_parser() -> argparse.ArgumentParser:
     load.set_defaults(func=load_context, write=False)
 
     audit = sub.add_parser("audit-freshness", help="audit context freshness without changing source context")
-    audit.add_argument("--source", default=".codex-context")
+    audit.add_argument("--source", default=DEFAULT_CONTEXT_ROOT)
     audit.add_argument("--source-label")
     audit.add_argument("--scope", choices=["auto", "repo", "global"], default="auto")
     audit.add_argument("--include", default=DEFAULT_FRESHNESS_INCLUDE)
@@ -1776,20 +2311,33 @@ def build_parser() -> argparse.ArgumentParser:
     finalize.add_argument("--log")
     finalize.set_defaults(func=finalize_session_distillation)
 
-    register = sub.add_parser("register-project", help="register this repository in ~/.codex-context")
-    register.add_argument("--target", default="~/.codex-context")
-    register.add_argument("--repo-root", default=".")
-    register.add_argument("--title")
-    register.add_argument("--description")
-    register.add_argument("--status", choices=["active", "inactive", "archived"], default="active")
-    register.add_argument("--sensitivity", choices=["private", "internal", "public"], default="private")
-    register.add_argument("--dry-run", action="store_true")
-    register.add_argument("--write", action="store_true")
-    register.add_argument("--log")
-    register.set_defaults(func=register_project)
+    def add_project_init_arguments(command: argparse.ArgumentParser) -> None:
+        command.add_argument("--target", default=DEFAULT_CONTEXT_ROOT)
+        command.add_argument("--repo-root", default=".")
+        command.add_argument("--title")
+        command.add_argument("--description")
+        command.add_argument("--status", choices=["active", "inactive", "archived"], default="active")
+        command.add_argument("--sensitivity", choices=["private", "internal", "public"], default="private")
+        command.add_argument("--dry-run", action="store_true")
+        command.add_argument("--write", action="store_true")
+        command.add_argument("--log")
 
-    promote = sub.add_parser("promote", help="promote context into ~/.codex-context")
-    promote.add_argument("--target", default="~/.codex-context")
+    init_project_parser = sub.add_parser(
+        "init-project",
+        help="initialize or refresh this project in the versioned Codex context store",
+    )
+    add_project_init_arguments(init_project_parser)
+    init_project_parser.set_defaults(func=init_project)
+
+    register = sub.add_parser(
+        "register-project",
+        help="deprecated alias for init-project",
+    )
+    add_project_init_arguments(register)
+    register.set_defaults(func=register_project_alias)
+
+    promote = sub.add_parser("promote", help="promote context into the versioned Codex context store")
+    promote.add_argument("--target", default=DEFAULT_CONTEXT_ROOT)
     promote.add_argument("--kind", choices=["working-context", "decision", "candidate"], required=True)
     promote.add_argument("--title", required=True)
     promote.add_argument("--body-file", required=True)

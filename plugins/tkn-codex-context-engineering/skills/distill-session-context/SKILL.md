@@ -1,6 +1,6 @@
 ---
 name: distill-session-context
-description: Distill a Codex Project session note from a projectId-specific sessions folder under `~/.codex-context/projects/` or a user-specified explicit session note into a short review candidate for reusable context and finalize the source session's distillation metadata after review. Use when the user asks to distill, summarize, extract reusable learning, review or close pending distillationStatus, update distilledTo, or create decision/working-context/Skill/AGENTS candidates. Current-project resolution requires `.codex-context/project.yaml` to resolve in the private registry; marker creation alone is not a trigger.
+description: Distill a Codex Project session note from a projectId-specific sessions folder under `~/.tkn/codex-context/state/` or a user-specified explicit session note into a short review candidate for reusable context and finalize the source session's distillation metadata after review. Use when the user asks to distill, summarize, extract reusable learning, review or close pending distillationStatus, update distilledTo, or create decision/working-context/Skill/AGENTS candidates. Current-project resolution requires `.tkn/codex-context.yaml` to resolve in the private registry; marker creation alone is not a trigger.
 ---
 
 # Distill Session Context
@@ -13,14 +13,14 @@ Default to candidate generation. Do not mark the source session as distilled, up
 
 This skill runs only when the user asks to distill, summarize, review, or finalize a session note.
 
-If the user provides an explicit session note path, use that file as the source after verifying it exists and is safe to read. If the source must be resolved from the current project, the repository must be intentionally registered: `.codex-context/project.yaml` exists and its `projectId` resolves through `~/.codex-context/projects/index.jsonl` for the current workspace.
+If the user provides an explicit session note path, use that file as the source after verifying it exists and is safe to read. If the source must be resolved from the current project, the repository must be intentionally registered: `.tkn/codex-context.yaml` exists and its `projectId` resolves through `~/.tkn/codex-context/state/index.jsonl` for the current workspace.
 
-The marker file alone does not trigger distillation or finalization. If project registration is missing, ask for an explicit session path or guide the user to `register-project-context`; only invoke registration when the user explicitly asks to register or update project context.
+The marker file alone does not trigger distillation or finalization. If project registration is missing, ask for an explicit session path or guide the user to `init-project-context`; only invoke registration when the user explicitly asks to register or update project context.
 
 ## Workflow
 
 1. Identify the source session note.
-   - Prefer a user-specified `~/.codex-context/projects/<projectId>/sessions/*.md` file.
+   - Prefer a user-specified `~/.tkn/codex-context/state/<projectId>/sessions/*.md` file.
    - If none is specified, inspect project `working-context.md` or ask for the intended session note when multiple candidates are plausible.
 2. Optionally run `audit-context-freshness` first when the session is old or `distillationStatus` is pending/partial.
 3. Run a dry-run distillation to confirm the output path and extracted sections.
@@ -34,7 +34,7 @@ Dry-run distillation:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
-  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
+  --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --dry-run
 ```
 
@@ -42,7 +42,7 @@ Write a candidate under the private Codex working root for the current registere
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
-  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
+  --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --write
 ```
 
@@ -52,7 +52,7 @@ Classify the candidate when the likely destination is already clear:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/distill_session_context.py \
-  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
+  --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --kind decision-candidate \
   --write
 ```
@@ -71,9 +71,9 @@ Finalize after reusable context was accepted into a durable destination:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
-  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
+  --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --status distilled \
-  --distilled-to ~/.codex-context/projects/<projectId>/decisions/DR-0001-example.md \
+  --distilled-to ~/.tkn/codex-context/state/<projectId>/decisions/DR-0001-example.md \
   --write
 ```
 
@@ -81,7 +81,7 @@ Use `partial` when only some useful content was accepted:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
-  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
+  --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --status partial \
   --distilled-to ~/.codex-working/projects/<projectId>/context-bridge/distilled-session-candidates/<candidate>.md \
   --write
@@ -91,7 +91,7 @@ Use `no-action` when review found nothing worth carrying forward:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
-  --session ~/.codex-context/projects/<projectId>/sessions/<session-note>.md \
+  --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --status no-action \
   --write
 ```
@@ -113,5 +113,5 @@ The generated file is only a review candidate. Promotion is a separate step.
 - Treat session notes as raw or silver context, not current truth.
 - Do not copy full chat transcripts or full session notes into candidates.
 - Do not distill a session note that contains secrets, credentials, tokens, private keys, full env vars, large logs, or unnecessary personal/customer data.
-- Do not put private absolute paths in `--distilled-to`; use private working-root paths under `~/.codex-working/projects/<projectId>/...`, project-context paths under `~/.codex-context/projects/<projectId>/...`, or other explicit `~/.codex-context/...` destinations.
+- Do not put private absolute paths in `--distilled-to`; use private working-root paths under `~/.codex-working/projects/<projectId>/...`, project-context paths under `~/.tkn/codex-context/state/<projectId>/...`, or other explicit `~/.tkn/codex-context/...` destinations.
 - Keep candidate output in the private Codex working root unless the user explicitly requests a repository artifact.

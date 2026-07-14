@@ -1,6 +1,6 @@
 ---
 name: promote-global-context
-description: 登録済み current project の session、decision、working context またはユーザー指定の explicit source から reusable Codex context を抽出し、script 経由で ~/.codex-context へ promote する。context を global に save、write、update、promote する依頼や promotionStatus 更新で使う。current-project source は `.codex-context/project.yaml` が private registry で現在 workspace に解決できることが必要で、marker 生成だけでは使わない。
+description: 登録済み current project の session、decision、working context またはユーザー指定の explicit source から reusable Codex context を抽出し、script 経由で ~/.tkn/codex-context へ promote する。context を global に save、write、update、promote する依頼や promotionStatus 更新で使う。current-project source は `.tkn/codex-context.yaml` が private registry で現在 workspace に解決できることが必要で、marker 生成だけでは使わない。
 ---
 
 # Promote Global Context
@@ -13,17 +13,17 @@ description: 登録済み current project の session、decision、working conte
 
 この skill は、ユーザーが global context への save、write、update、promote、または promotionStatus 更新を明示した場合だけ使う。
 
-Current project の session、decision、working context を source にする場合、現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる必要がある。ユーザーが explicit source path を指定した場合は、その path を検証して対象にできる。
+Current project の session、decision、working context を source にする場合、現在の repository に `.tkn/codex-context.yaml` があり、その `projectId` が `~/.tkn/codex-context/state/index.jsonl` で現在の workspace に解決できる必要がある。ユーザーが explicit source path を指定した場合は、その path を検証して対象にできる。
 
-`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、source path の指定または `register-project-context` を案内する。
+`.tkn/codex-context.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、source path の指定または `init-project-context` を案内する。
 
 ## Target
 
-`~/.codex-context`
+`~/.tkn/codex-context`
 
 この directory は context store であり、Codex configuration ではない。ユーザーが Codex configuration の編集を明示的に依頼しない限り、generated context を `~/.codex` に書き込まない。
 
-この Plugin では `~/.codex-context` への bridge scripts は plugin root の `scripts/context_bridge/` に bundled されている。この `SKILL.md` からは `../../scripts/context_bridge/promote_context.py` として解決できる。
+この Plugin では `~/.tkn/codex-context` への bridge scripts は plugin root の `scripts/context_bridge/` に bundled されている。この `SKILL.md` からは `../../scripts/context_bridge/promote_context.py` として解決できる。
 
 ## When to use
 
@@ -31,7 +31,7 @@ Current project の session、decision、working context を source にする場
 
 - "これをglobal contextに反映して"
 - "この判断は他repoでも使う"
-- "今回の学びを `~/.codex-context` に保存して"
+- "今回の学びを `~/.tkn/codex-context` に保存して"
 - "write global context"
 - "promote global context"
 - "promotionStatus を更新して"
@@ -105,7 +105,7 @@ decision record:
 
 ## Destination Frontmatter
 
-`~/.codex-context` に新規作成する Markdown は Frontmatter を持つ。destination 側の metadata は source 側の metadata をそのままコピーせず、global context としての意味に合わせて再定義する。
+`~/.tkn/codex-context` に新規作成する Markdown は Frontmatter を持つ。destination 側の metadata は source 側の metadata をそのままコピーせず、global context としての意味に合わせて再定義する。
 
 global working context:
 
@@ -206,13 +206,13 @@ decision record:
 - reusable content 全体が global decision または candidate として昇格した場合、`promotionStatus: promoted`。
 - 一部だけ昇格した場合、`promotionStatus: partial`。
 - review の結果、昇格不要と判断した場合、`promotionStatus: no-action`。
-- `promotedTo` には exact path を追加する。例: `~/.codex-context/decisions/DR-G-use-explicit-skill-bridge-for-global-context.md`。
+- `promotedTo` には exact path を追加する。例: `~/.tkn/codex-context/data/decisions/DR-G-use-explicit-skill-bridge-for-global-context.md`。
 
 working context:
 
 - global dashboard へ反映した current truth が working context 全体の一部なら `promotionStatus: partial`。
 - working context の reusable content がすべて反映済みなら `promotionStatus: promoted`。
-- `promotedTo` には `~/.codex-context/working-context.md` などを追加する。
+- `promotedTo` には `~/.tkn/codex-context/data/working-context.md` などを追加する。
 
 session note:
 
@@ -232,7 +232,7 @@ Candidate example:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/promote_context.py \
-  --target ~/.codex-context \
+  --target ~/.tkn/codex-context \
   --kind candidate \
   --title "context loop import promote skills" \
   --body-file _inbox/ai/example.md \
@@ -245,10 +245,10 @@ Decision example:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/promote_context.py \
-  --target ~/.codex-context \
+  --target ~/.tkn/codex-context \
   --kind decision \
   --title "use explicit skill bridge for global context" \
-  --body-file ~/.codex-context/projects/<projectId>/decisions/DR-0008-use-explicit-skill-bridge-for-global-context.md \
+  --body-file ~/.tkn/codex-context/state/<projectId>/decisions/DR-0008-use-explicit-skill-bridge-for-global-context.md \
   --source-repo notes \
   --write \
   --log <temp-dir>/context-bridge/promote-decision-write.log
@@ -258,7 +258,7 @@ Working context append example:
 
 ```bash
 python3 <plugin-root>/scripts/context_bridge/promote_context.py \
-  --target ~/.codex-context \
+  --target ~/.tkn/codex-context \
   --kind working-context \
   --title "Current global Codex context policy" \
   --body-file _inbox/ai/context-summary.md \
@@ -267,7 +267,7 @@ python3 <plugin-root>/scripts/context_bridge/promote_context.py \
   --log <temp-dir>/context-bridge/promote-working-context-write.log
 ```
 
-`~/.codex-context` が repository 外にあるため、environment によっては `--write` 実行に user approval または filesystem permission escalation が必要になる。
+`~/.tkn/codex-context` が repository 外にあるため、environment によっては `--write` 実行に user approval または filesystem permission escalation が必要になる。
 
 ## Safety
 
@@ -275,5 +275,5 @@ python3 <plugin-root>/scripts/context_bridge/promote_context.py \
 - script が sensitive-looking content を報告した場合の停止。
 - copied repo notes より concise synthesized context の優先。
 - useful な場合は generated file に source paths を残す。ただし sensitive local details の不要な埋め込みは避けること。
-- imported snapshot `.codex-context/global-context/` は historical reference であり、promotion destination ではない。write destination は `~/.codex-context`。
+- imported snapshot `.codex-context/global-context/` は historical reference であり、promotion destination ではない。write destination は `~/.tkn/codex-context`。
 - current user instructions、system/developer instructions、repository `AGENTS.md`、current file contents を global context より優先する。

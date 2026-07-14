@@ -1,6 +1,6 @@
 ---
 name: audit-context-freshness
-description: Audit repo-local, current-project, or user-global Codex context for stale, pending, missing, or risky freshness metadata. Use when the user asks to review context freshness, stale context, outdated decisions, pending distillation, pending promotion, or whether context should be revalidated before reuse. Current-project audits require `.codex-context/project.yaml` to resolve in the private registry; marker creation alone is not a trigger.
+description: Audit repo-local, current-project, or user-global Codex context for stale, pending, missing, or risky freshness metadata. Use when the user asks to review context freshness, stale context, outdated decisions, pending distillation, pending promotion, or whether context should be revalidated before reuse. Current-project audits require `.tkn/codex-context.yaml` to resolve in the private registry; marker creation alone is not a trigger.
 ---
 
 # Audit Context Freshness
@@ -13,15 +13,16 @@ Default to read-only audit. Do not update context files, global context, AGENTS.
 
 This skill runs only when the user asks for a freshness, stale-context, pending-review, or reuse-risk audit.
 
-For current-project audits, the repository must be intentionally registered: `.codex-context/project.yaml` exists and its `projectId` resolves through `~/.codex-context/projects/index.jsonl` for the current workspace.
+For current-project audits, the repository must be intentionally registered: `.tkn/codex-context.yaml` exists and its `projectId` resolves through `~/.tkn/codex-context/state/index.jsonl` for the current workspace.
 
-The marker file alone does not trigger an audit. Legacy repo-local `.codex-context` audits and explicit user-global `~/.codex-context` audits may run without a current project registration, but they remain read-only by default.
+The marker file alone does not trigger an audit. Legacy repo-local `.codex-context` audits and explicit user-global `~/.tkn/codex-context` audits may run without a current project registration, but they remain read-only by default.
 
 ## Workflow
 
 1. Confirm the target context source.
-   - Repo-local default: `.codex-context`
-   - User-global context: `~/.codex-context`
+   - Current project state: `~/.tkn/codex-context/state/<projectId>`
+   - Legacy repo-local context, only when explicitly requested: `.codex-context`
+   - User-global context: `~/.tkn/codex-context`
 2. Run a dry-run freshness audit first.
 3. Review the reported stale, missing, pending, or risky items.
 4. Revalidate important stale context against current files, current user instructions, repository instructions, and git state before relying on it.
@@ -33,7 +34,7 @@ Audit the current repository context without writing files:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
-  --source .codex-context \
+  --source ~/.tkn/codex-context/state/<projectId> \
   --dry-run
 ```
 
@@ -41,7 +42,7 @@ Audit user-global context without writing files:
 
 ```bash
 python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
-  --source ~/.codex-context \
+  --source ~/.tkn/codex-context \
   --scope global \
   --dry-run
 ```
@@ -50,7 +51,7 @@ Write a review report to the private Codex working root for the current register
 
 ```bash
 python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
-  --source .codex-context \
+  --source ~/.tkn/codex-context/state/<projectId> \
   --write
 ```
 
@@ -60,9 +61,9 @@ Use a global report destination only when the user explicitly asks to preserve t
 
 ```bash
 python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
-  --source ~/.codex-context \
+  --source ~/.tkn/codex-context \
   --scope global \
-  --report-dest ~/.codex-context/reviews \
+  --report-dest ~/.tkn/codex-context/data/reviews \
   --write
 ```
 

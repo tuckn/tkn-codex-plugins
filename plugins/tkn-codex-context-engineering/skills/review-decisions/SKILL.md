@@ -1,6 +1,6 @@
 ---
 name: review-decisions
-description: 登録済み current project の ~/.codex-context/projects/<projectId>/decisions またはユーザー指定の explicit decisions directory を Frontmatter metadata と本文で review し、durable repository documents への updates、global context 候補、promotionStatus 更新案を提案または適用する。ユーザー意図が decision 棚卸し、documented すべき decisions 発見、global context 候補抽出、accepted decision records からの repository guidance 更新依頼に一致する場合に使う。marker 生成だけでは使わない。
+description: 登録済み current project の projectId-specific decisions folder またはユーザー指定の explicit decisions directory を Frontmatter metadata と本文で review し、durable repository documents への updates、global context 候補、promotionStatus 更新案を提案または適用する。ユーザー意図が decision 棚卸し、documented すべき decisions 発見、global context 候補抽出、accepted decision records からの repository guidance 更新依頼に一致する場合に使う。marker 生成だけでは使わない。
 ---
 
 # Review Decisions
@@ -13,16 +13,16 @@ description: 登録済み current project の ~/.codex-context/projects/<project
 
 この skill は、ユーザーが decision review、棚卸し、document update、global context candidate 抽出、promotion metadata review を依頼した場合だけ使う。
 
-Current project の decisions を review する場合、現在の repository に `.codex-context/project.yaml` があり、その `projectId` が `~/.codex-context/projects/index.jsonl` で現在の workspace に解決できる必要がある。ユーザーが explicit decisions directory を指定した場合は、その directory を検証して対象にできる。
+Current project の decisions を review する場合、現在の repository に `.tkn/codex-context.yaml` があり、その `projectId` が `~/.tkn/codex-context/state/index.jsonl` で現在の workspace に解決できる必要がある。ユーザーが explicit decisions directory を指定した場合は、その directory を検証して対象にできる。
 
-`.codex-context/project.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、対象 path の指定または `register-project-context` を案内する。
+`.tkn/codex-context.yaml` が存在する、または直前に生成された、という事実だけではこの skill を発動しない。未登録または registry 解決不能の場合は自動登録せず、対象 path の指定または `init-project-context` を案内する。
 
 ## Inputs
 
 Typical inputs:
 
-- `~/.codex-context/projects/<projectId>/decisions/DR-*.md`
-- `~/.codex-context/projects/<projectId>/working-context.md`
+- `~/.tkn/codex-context/state/<projectId>/decisions/DR-*.md`
+- `~/.tkn/codex-context/state/<projectId>/working-context.md`
 - `AGENTS.md`
 - `README.md`
 - Specs、design docs、operation docs、plans、その他 durable repository documents。
@@ -87,7 +87,7 @@ decision record の Frontmatter を一次 index として扱う。
    - source decision paths と根拠。
 8. concise review result の作成。
 9. ユーザーが edits を依頼した場合、target docs への scoped changes と validation の記録。
-10. ユーザーが global promotion を依頼した場合、`promote-global-context` の workflow に従う。review だけで `~/.codex-context` へ書き込まない。
+10. ユーザーが global promotion を依頼した場合、`promote-global-context` の workflow に従う。review だけで `~/.tkn/codex-context` へ書き込まない。
 11. update が substantial または uncertain な場合、durable docs を直接編集する前に `_inbox/ai` または repository configured AI output folder へ proposal note を作成。
 
 ## Review criteria

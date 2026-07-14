@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.5.1",
-  "description": "Register Codex projects, choose and clean up runtime working roots, preserve project context, review local chat logs, and manage session notes, decisions, memos, global context, freshness, and distillation across chats and repositories.",
+  "version": "0.6.0",
+  "description": "Initialize Codex projects, choose and clean up runtime working roots, preserve versioned private project state, review local chat logs, and manage sessions, decisions, memos, global context, freshness, and distillation.",
   "author": {
     "name": "Tuckn"
   },
@@ -30,8 +30,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
-    "shortDescription": "Register projects, choose working roots, maintain context, and reuse private notes",
-    "longDescription": "A Codex plugin that groups context engineering skills and scripts for Codex project registration, private runtime working-root selection, legacy .local runtime cleanup, legacy local-context migration, working context dashboards, session notes and resume, decision records and review, project memos, local Codex chat review, session-log extraction, distillation candidates and finalization, freshness audits, read-only global context loading, explicit snapshot import, and promotion through ~/.codex-context.",
+    "shortDescription": "Initialize projects, maintain private state, and reuse durable context",
+    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, versioned private context under ~/.tkn/codex-context, runtime working-root selection, legacy context migration, working dashboards, sessions, decisions, memos, chat review, distillation, freshness audits, read-only loading, snapshot import, and explicit promotion.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -39,11 +39,9 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Register this repository in the global Codex context registry",
+      "Initialize this repository in the private Codex context registry",
       "Use the right Codex working root before installing Python or Node dependencies",
-      "Clean up a legacy .local runtime folder",
-      "Resume an existing project session note",
-      "Review last month's Codex chats"
+      "Resume an existing project session note"
     ],
     "brandColor": "#2563EB",
     "screenshots": []

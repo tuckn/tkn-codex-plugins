@@ -1,6 +1,6 @@
 ---
 name: review-codex-chats
-description: Review local Codex JSONL chat logs from `~/.codex/sessions` and create monthly Codex chat source review notes under `~/.codex-context/session-reviews`. Use when the user asks for a Codex chat review, monthly Codex transcript review, AI collaboration review, or source review of local Codex sessions. This skill summarizes sessions into Fact Extract, Insight Synthesis, and Materialization Candidates without creating decisions, session notes, working-context updates, Skills, or actions.
+description: Review local Codex JSONL chat logs from `~/.codex/sessions` and create monthly Codex chat source review notes under `~/.tkn/codex-context/data/session-reviews`. Use when the user asks for a Codex chat review, monthly Codex transcript review, AI collaboration review, or source review of local Codex sessions. This skill summarizes sessions into Fact Extract, Insight Synthesis, and Materialization Candidates without creating decisions, session notes, working-context updates, Skills, or actions.
 ---
 
 # Review Codex Chats
@@ -9,7 +9,7 @@ Use this skill to review Codex chat transcripts as a source record of AI collabo
 
 The source root is fixed to `~/.codex/sessions`. Do not use environment files, repository-local source-root config, or alternate archive roots for normal use.
 
-The output root is fixed to `~/.codex-context/session-reviews`.
+The output root is fixed to `~/.tkn/codex-context/data/session-reviews`.
 
 ## Scope
 
@@ -48,7 +48,7 @@ Read raw `.jsonl` files only when the summary is insufficient. Keep raw transcri
 Write the monthly review note to:
 
 ```text
-~/.codex-context/session-reviews/YYYY/YYYYMMDDTHHMMSS+0900_codex-chat-review-YYYY-MM.md
+~/.tkn/codex-context/data/session-reviews/YYYY/YYYYMMDDTHHMMSS+0900_codex-chat-review-YYYY-MM.md
 ```
 
 Use the system clock and timezone offset for the filename timestamp.
@@ -89,7 +89,7 @@ noteId: "<UUID>"
 2. Run `parse_codex_chats.py` and write summary JSON under the OS temp directory.
 3. Read the summary JSON.
 4. Open only the specific raw `.jsonl` files needed to clarify unclear sessions.
-5. Write one review note under `~/.codex-context/session-reviews`.
+5. Write one review note under `~/.tkn/codex-context/data/session-reviews`.
 6. Verify frontmatter, period fields, `sourceRefs`, and heading hierarchy.
 7. Reply with the created note path, period, session count, 2-4 major patterns, and a reminder that materialization was not performed.
 
