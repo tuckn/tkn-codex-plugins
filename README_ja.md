@@ -22,7 +22,6 @@ Codex は marketplace manifest を次の場所から読み込みます。
 
 - `.agents/plugins/marketplace.json`: このリポジトリの marketplace catalog。
 - `plugins/`: 公開可能な Codex plugin bundle。
-- `scripts/sync_skills/`: plugin bundle を元にした旧来の Skill copy-distribution tooling。
 
 このリポジトリには完成済みの plugin bundle を置きます。開発用の source tree は別の
 リポジトリに置き、完成した bundle を `plugins/<plugin-name>/` に反映します。
@@ -81,44 +80,4 @@ marketplace path には、次のような repo-relative path を使います。
   },
   "category": "Productivity"
 }
-```
-
-## Legacy Skill Sync
-
-推奨される配布方法は Codex plugin marketplace です。plugin が使えない環境では、
-`scripts/sync_skills/sync_skills.py` を使って
-`plugins/tkn-codex-context-engineering/skills/` を対象リポジトリへ copy できます。
-
-sample から local target manifest を作成します。
-
-```powershell
-Copy-Item scripts\sync_skills\targets_sample.json scripts\sync_skills\targets.json
-```
-
-自分の環境に合わせて `scripts/sync_skills/targets.json` を編集します。この file は local
-absolute paths を含むため、意図的に Git から無視されます。Windows paths を canonical とし、
-script を Windows 以外で実行する場合は `C:\example\repo` のような drive path が
-`/mnt/c/example/repo` に変換されます。
-
-Manifest shape:
-
-```json
-{
-  "targets": [
-    {
-      "name": "notes",
-      "path": "C:\\example\\workspaces\\notes",
-      "skillsPath": ".agents\\skills"
-    }
-  ]
-}
-```
-
-よく使う commands:
-
-```sh
-python3 scripts/sync_skills/sync_skills.py --dry-run
-python3 scripts/sync_skills/sync_skills.py --target notes
-python3 scripts/sync_skills/sync_skills.py --target notes --skill maintain-session-note
-python3 scripts/sync_skills/sync_skills.py --manifest scripts/sync_skills/targets_sample.json --dry-run
 ```

@@ -22,7 +22,6 @@ Codex reads the marketplace manifest from:
 
 - `.agents/plugins/marketplace.json`: marketplace catalog for this repository.
 - `plugins/`: publishable Codex plugin bundles.
-- `scripts/sync_skills/`: legacy Skill copy-distribution tooling sourced from plugin bundles.
 
 This repository stores finished plugin bundles. Development source trees should live in separate
 repositories and publish completed bundles into `plugins/<plugin-name>/`.
@@ -81,43 +80,4 @@ Use repo-relative marketplace paths such as:
   },
   "category": "Productivity"
 }
-```
-
-## Legacy Skill Sync
-
-The preferred distribution path is the Codex plugin marketplace. For environments where plugins
-are unavailable, `scripts/sync_skills/sync_skills.py` can still copy
-`plugins/tkn-codex-context-engineering/skills/` into target repositories.
-
-Create your local target manifest from the sample:
-
-```powershell
-Copy-Item scripts\sync_skills\targets_sample.json scripts\sync_skills\targets.json
-```
-
-Edit `scripts/sync_skills/targets.json` for your machine. This file is intentionally ignored by
-Git because it contains local absolute paths. Windows paths are canonical; when the script runs
-outside Windows, drive paths such as `C:\example\repo` are converted to `/mnt/c/example/repo`.
-
-Manifest shape:
-
-```json
-{
-  "targets": [
-    {
-      "name": "notes",
-      "path": "C:\\example\\workspaces\\notes",
-      "skillsPath": ".agents\\skills"
-    }
-  ]
-}
-```
-
-Common commands:
-
-```sh
-python3 scripts/sync_skills/sync_skills.py --dry-run
-python3 scripts/sync_skills/sync_skills.py --target notes
-python3 scripts/sync_skills/sync_skills.py --target notes --skill maintain-session-note
-python3 scripts/sync_skills/sync_skills.py --manifest scripts/sync_skills/targets_sample.json --dry-run
 ```
