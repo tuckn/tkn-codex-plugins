@@ -16,23 +16,39 @@ Codex chat 履歴を source evidence として、登録済み project の privat
 
 未登録または registry 解決不能の場合は何も作成せず、`init-project-context` を案内する。自動初期化しない。
 
+## Default project scope
+
+指示がない場合、対象は current working directory が表す Codex Project 1件だけに限定する。
+
+1. Current repository の `.tkn/codex-context.yaml` を読む。
+2. Marker の `projectId` を取得する。
+3. `~/.tkn/codex-context/state/index.jsonl` から同じ `projectId` の record 1件だけを解決する。
+4. Registry の他 project records を列挙、scan、または順次実行しない。
+
+`index.jsonl` は current project の private paths と current root を解決する lookup table としてだけ使う。この Skill に all-project refresh mode は設けない。別 project を対象にする場合は、その project folder を current workspace として明示的に実行する。
+
 ## Source and state
 
 - Source root は `$CODEX_HOME/sessions`。`CODEX_HOME` 未設定時は `~/.codex/sessions`。
+- Source root は project-local の `./codex/sessions` ではない。
 - Source JSONL は read-only とし、編集、移動、削除しない。
 - 差分 state は `~/.tkn/codex-context/state/<projectId>/chat-refresh-state.json`。
+- State の `lastRefreshAt` と thread ごとの fingerprint を前回成功時点として使う。State が存在しない場合は初回実行として扱う。
 - Scan output と result JSON は OS temp に置く。repository `.local/` を作らない。
+
+Codex JSONL は通常 `projectId` を持たない。Current root、registry が解決した path aliases、ユーザーが承認済みの historical roots に一致する `session_meta.cwd` または `turn_context.cwd` を使い、current project に属する messages だけを選ぶ。同じ Git repository URL の別 root は自動採用せず候補にする。
 
 ## Preflight
 
-1. Repository instructions と current files の確認。
-2. この Skill と同じ `skills/` directory にある次の3ファイルを完全に読む。
+1. Repository instructions、current files、marker `projectId`、resolved registry record の確認。
+2. Existing project `working-context.md` を読み、session note と decision record は filenames と Frontmatter を先に確認する。Source chat と関連する file 本文だけを選択して読む。
+3. この Skill と同じ `skills/` directory にある次の3ファイルを完全に読む。
    - `write-session-note/SKILL.md`
    - `record-decision/SKILL.md`
    - `write-current-working-context/SKILL.md`
-3. `scripts/refresh_project_context_from_chats.py scan` を実行する。
-4. `historicalRootCandidates` がある場合、root、理由、session count を提示し、承認または拒否を確認する。確認前に project context を変更しない。
-5. 承認後は `--approve-root`、拒否後は `--reject-root` を付けて scan を再実行する。
+4. `scripts/refresh_project_context_from_chats.py scan` を実行する。
+5. `historicalRootCandidates` がある場合、root、理由、session count を提示し、承認または拒否を確認する。確認前に project context を変更しない。
+6. 承認後は `--approve-root`、拒否後は `--reject-root` を付けて scan を再実行する。
 
 Typical scan:
 

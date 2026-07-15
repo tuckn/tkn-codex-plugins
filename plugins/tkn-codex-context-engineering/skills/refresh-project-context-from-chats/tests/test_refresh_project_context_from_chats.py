@@ -187,6 +187,39 @@ class RefreshProjectContextTests(unittest.TestCase):
         self.assertEqual(mixed["messageCount"], 2)
         self.assertNotIn("other project request", [m["text"] for m in mixed["messages"]])
 
+    def test_registry_scope_is_current_marker_project_only(self) -> None:
+        self.create_fixture_sessions()
+        other_repo = self.root / "registered-other-repo"
+        other_state = self.root / "registered-other-state"
+        other_state.mkdir()
+        with self.registry.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "projectId": "20260701_other_project_efgh5678",
+                        "currentRoot": str(other_repo),
+                        "projectContextPath": str(other_state),
+                    }
+                )
+                + "\n"
+            )
+        write_session(
+            self.sessions / "2026" / "07" / "02" / "registered-other.jsonl",
+            thread_id="thread-registered-other",
+            cwd=other_repo,
+            user_text="other registered project request",
+            repository_url="https://example.invalid/other/registered-project.git",
+        )
+
+        scan = self.scan()
+
+        self.assertEqual(scan["projectId"], self.project_id)
+        self.assertEqual(Path(scan["stateFile"]), self.state_file)
+        self.assertNotIn(
+            "thread-registered-other",
+            {item["threadId"] for item in scan["sessions"]},
+        )
+
     def test_commit_is_incremental_and_detects_changed_source(self) -> None:
         paths = self.create_fixture_sessions()
         first_scan = self.scan()
