@@ -39,7 +39,7 @@ Useful options:
 - `--max-samples N`: maximum user and assistant text samples per session.
 - `--sample-chars N`: maximum characters per sample before truncation.
 
-The parser defaults to `~/.codex/sessions`, writes JSON only when `--output` is supplied, and records `sourceRefs` as paths relative to `~/.codex/sessions`. It redacts likely absolute paths from extracted text samples.
+The parser defaults to `~/.codex/sessions`, writes JSON only when `--output` is supplied, and records `sourceRefs` as paths relative to `~/.codex/sessions` for the review note's final source-reference section. It redacts likely absolute paths from extracted text samples.
 
 Read raw `.jsonl` files only when the summary is insufficient. Keep raw transcript excerpts short.
 
@@ -69,7 +69,6 @@ periodStart: YYYY-MM-DD
 periodEnd: YYYY-MM-DD
 sourceType: codexSessions
 sourceRoot: "~/.codex/sessions"
-sourceRefs: []
 sourceMaterialPolicy: quoteAllowed
 privacyClass: sensitive
 analysisLevel: sourceReview
@@ -81,7 +80,7 @@ noteId: "<UUID>"
 
 `generator: Codex`, `reviewStatus: draft`, `sourceType: codexSessions`, `sourceRoot: "~/.codex/sessions"`, and `privacyClass: sensitive` are required.
 
-`sourceRefs` must contain only paths relative to `~/.codex/sessions`. Do not write private absolute source paths.
+Do not put `sourceRefs` in Frontmatter. List every parser-provided `sourceRef` in the final `## 6. Source References` section as a Markdown bullet with the relative JSONL path in inline code. Keep paths relative to `~/.codex/sessions`; do not write private absolute source paths. Do not put any section or content after the source-reference list.
 
 ## Workflow
 
@@ -90,7 +89,7 @@ noteId: "<UUID>"
 3. Read the summary JSON.
 4. Open only the specific raw `.jsonl` files needed to clarify unclear sessions.
 5. Write one review note under `~/.tkn/codex-context/data/session-reviews`.
-6. Verify frontmatter, period fields, `sourceRefs`, and heading hierarchy.
+6. Verify that Frontmatter has no `sourceRefs`, every parser-provided reference appears under the final `## 6. Source References` section, and period fields and heading hierarchy are correct.
 7. Reply with the created note path, period, session count, 2-4 major patterns, and a reminder that materialization was not performed.
 
 ## Review Structure
@@ -145,6 +144,10 @@ noteId: "<UUID>"
 ## 4. Needs Confirmation
 
 ## 5. Next Steps
+
+## 6. Source References
+
+- `2026/06/01/rollout-2026-06-01T00-00-00-session-id.jsonl`
 ```
 
 Keep the three review layers separate:
