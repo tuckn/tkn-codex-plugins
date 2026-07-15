@@ -1,6 +1,6 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Initialize Codex projects, refresh private project context from chat history, search and review Codex chats across projects, and manage sessions, decisions, memos, freshness, and distillation.",
   "author": {
     "name": "Tuckn"

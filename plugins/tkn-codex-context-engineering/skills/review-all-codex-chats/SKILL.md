@@ -25,7 +25,7 @@ Handle Codex chat source review only.
 Use the bundled parser to summarize matching JSONL files before writing the review note.
 
 ```powershell
-python plugins\tkn-codex-context-engineering\skills\review-all-codex-chats\scripts\parse_codex_chats.py `
+python -B plugins\tkn-codex-context-engineering\skills\review-all-codex-chats\scripts\parse_codex_chats.py `
   --month 2026-06 `
   --output "$env:TEMP\review-all-codex-chats\2026-06-summary.json"
 ```

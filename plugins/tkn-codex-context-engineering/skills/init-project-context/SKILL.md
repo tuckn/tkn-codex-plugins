@@ -55,7 +55,7 @@ Do not create new working context, session notes, or decision records inside the
 ## Workflow
 
 1. Check repository instructions when relevant.
-2. Resolve this skill's plugin root and use `../../scripts/context_bridge/init_project_context.py`.
+2. Resolve this skill root and use `scripts/init_project_context.py`.
 3. Decide marker metadata before write:
    - use `--title` when the folder name is not the right display title;
    - use `--description` only when a short Codex Project folder description is known;
@@ -87,7 +87,7 @@ Initialization behavior:
 Dry-run:
 
 ```powershell
-python <plugin-root>/scripts/context_bridge/init_project_context.py `
+python -B <skill-root>/scripts/init_project_context.py `
   --target ~/.tkn/codex-context `
   --repo-root . `
   --dry-run
@@ -96,7 +96,7 @@ python <plugin-root>/scripts/context_bridge/init_project_context.py `
 Write:
 
 ```powershell
-python <plugin-root>/scripts/context_bridge/init_project_context.py `
+python -B <skill-root>/scripts/init_project_context.py `
   --target ~/.tkn/codex-context `
   --repo-root . `
   --write

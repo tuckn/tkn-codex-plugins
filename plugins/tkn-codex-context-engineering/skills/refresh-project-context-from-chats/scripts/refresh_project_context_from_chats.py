@@ -15,12 +15,13 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
+sys.dont_write_bytecode = True
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
-PLUGIN_SCRIPTS = PLUGIN_ROOT / "scripts"
-if str(PLUGIN_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(PLUGIN_SCRIPTS))
+PLUGIN_LIB = PLUGIN_ROOT / "lib"
+if str(PLUGIN_LIB) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_LIB))
 
-from codex_chat_logs import (  # noqa: E402
+from tkn_codex_context.chat_logs import (  # noqa: E402
     ChatMessage,
     default_sessions_root,
     fingerprint_session,

@@ -13,11 +13,12 @@ from pathlib import Path
 from typing import Any
 
 
-PLUGIN_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
-if str(PLUGIN_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(PLUGIN_SCRIPTS))
+sys.dont_write_bytecode = True
+PLUGIN_LIB = Path(__file__).resolve().parents[3] / "lib"
+if str(PLUGIN_LIB) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_LIB))
 
-from codex_chat_logs import (  # noqa: E402
+from tkn_codex_context.chat_logs import (  # noqa: E402
     APPROVAL_REVIEW_PREFIX,
     default_sessions_root,
     normalize_message_text,

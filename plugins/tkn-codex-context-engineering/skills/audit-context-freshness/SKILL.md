@@ -33,7 +33,7 @@ The marker file alone does not trigger an audit. Legacy repo-local `.codex-conte
 Audit the current repository context without writing files:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
+python -B <skill-root>/scripts/audit_context_freshness.py \
   --source ~/.tkn/codex-context/state/<projectId> \
   --dry-run
 ```
@@ -41,7 +41,7 @@ python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
 Audit user-global context without writing files:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
+python -B <skill-root>/scripts/audit_context_freshness.py \
   --source ~/.tkn/codex-context \
   --scope global \
   --dry-run
@@ -50,16 +50,16 @@ python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
 Write a review report to the destination specified by the current project folder instructions:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
+python -B <skill-root>/scripts/audit_context_freshness.py \
   --source ~/.tkn/codex-context/state/<projectId> \
-  --report-dest <project-working-root>/context-bridge/freshness-reviews \
+  --report-dest <project-working-root>/codex-context/freshness-reviews \
   --write
 ```
 
 Use a global report destination only when the user explicitly asks to preserve the audit in the private global store:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/audit_context_freshness.py \
+python -B <skill-root>/scripts/audit_context_freshness.py \
   --source ~/.tkn/codex-context \
   --scope global \
   --report-dest ~/.tkn/codex-context/data/reviews \

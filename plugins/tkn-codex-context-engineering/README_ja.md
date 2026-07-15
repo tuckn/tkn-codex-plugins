@@ -43,11 +43,21 @@ Bundled Skills:
 plugins/tkn-codex-context-engineering/skills/
 ```
 
-Context bridge scripts:
+Skill固有のscripts:
 
 ```text
-plugins/tkn-codex-context-engineering/scripts/context_bridge/
+plugins/tkn-codex-context-engineering/skills/<skill-name>/scripts/
 ```
+
+複数Skillで共有するimport専用Python helper:
+
+```text
+plugins/tkn-codex-context-engineering/lib/tkn_codex_context/
+```
+
+同梱Python entry pointはbytecode cacheの書き込みを無効化します。repository内に
+`__pycache__`を作らず、Python bytecodeをuser cacheへ移しません。将来
+`~/.cache/net.tuckn/codex-context`を使う場合は、再生成可能なapplication data専用とします。
 
 ## 含まれる Skills
 

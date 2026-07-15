@@ -29,11 +29,11 @@ Run the bundled script from this skill directory or pass its absolute path.
 Typical commands:
 
 ```powershell
-python plugins\tkn-codex-context-engineering\skills\search-all-codex-chats\scripts\search_all_codex_chats.py --cwd-contains codex-context-engineering --query plugin --format markdown
+python -B plugins\tkn-codex-context-engineering\skills\search-all-codex-chats\scripts\search_all_codex_chats.py --cwd-contains codex-context-engineering --query plugin --format markdown
 ```
 
 ```powershell
-python plugins\tkn-codex-context-engineering\skills\search-all-codex-chats\scripts\search_all_codex_chats.py --thread-id 019e2ff0-6551-7493-81ca-b982158bc336 --messages-per-role 0
+python -B plugins\tkn-codex-context-engineering\skills\search-all-codex-chats\scripts\search_all_codex_chats.py --thread-id 019e2ff0-6551-7493-81ca-b982158bc336 --messages-per-role 0
 ```
 
 Useful filters:

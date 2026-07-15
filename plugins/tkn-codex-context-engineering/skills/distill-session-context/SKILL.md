@@ -33,26 +33,27 @@ The marker file alone does not trigger distillation or finalization. If project 
 Dry-run distillation:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/distill_session_context.py \
+python -B <skill-root>/scripts/distill_session_context.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
+  --dest <project-working-root>/codex-context/distilled-session-candidates \
   --dry-run
 ```
 
 Write a candidate to the destination specified by the current project folder instructions:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/distill_session_context.py \
+python -B <skill-root>/scripts/distill_session_context.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
-  --dest <project-working-root>/context-bridge/distilled-session-candidates \
+  --dest <project-working-root>/codex-context/distilled-session-candidates \
   --write
 ```
 
 Classify the candidate when the likely destination is already clear:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/distill_session_context.py \
+python -B <skill-root>/scripts/distill_session_context.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
-  --dest <project-working-root>/context-bridge/distilled-session-candidates \
+  --dest <project-working-root>/codex-context/distilled-session-candidates \
   --kind decision-candidate \
   --write
 ```
@@ -70,7 +71,7 @@ Supported `--kind` values:
 Finalize after reusable context was accepted into a durable destination:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
+python -B <skill-root>/scripts/finalize_session_distillation.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --status distilled \
   --distilled-to ~/.tkn/codex-context/state/<projectId>/decisions/DR-0001-example.md \
@@ -80,17 +81,17 @@ python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
 Use `partial` when only some useful content was accepted:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
+python -B <skill-root>/scripts/finalize_session_distillation.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --status partial \
-  --distilled-to <project-working-root>/context-bridge/distilled-session-candidates/<candidate>.md \
+  --distilled-to <project-working-root>/codex-context/distilled-session-candidates/<candidate>.md \
   --write
 ```
 
 Use `no-action` when review found nothing worth carrying forward:
 
 ```bash
-python <plugin-root>/scripts/context_bridge/finalize_session_distillation.py \
+python -B <skill-root>/scripts/finalize_session_distillation.py \
   --session ~/.tkn/codex-context/state/<projectId>/sessions/<session-note>.md \
   --status no-action \
   --write
