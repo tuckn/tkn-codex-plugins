@@ -68,6 +68,9 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `init-project-context`:
   - Initializes or refreshes a repository's Codex project identity with a small local
     `.tkn/codex-context.yaml` marker and the private user-global project registry.
+- `read-current-working-context`:
+  - Reads the registered current project's `working-context.md` as read-only orientation for a new
+    chat, project status check, resume, or handoff.
 - `write-current-working-context`:
   - Creates or updates `~/.tkn/codex-context/state/<projectId>/working-context.md` as a lightweight
     dashboard of the project's current state.
@@ -121,6 +124,8 @@ Included Skills are grouped by the role they play in the context lifecycle.
 Project initialization is a readiness gate, not an automatic trigger.
 
 - A Skill should run because the user intent matches that Skill.
+- Use `read-current-working-context` when a new chat needs project orientation; registration alone
+  does not read the dashboard automatically.
 - For project-scoped context reads or writes, the current repository must also be intentionally
   registered: `.tkn/codex-context.yaml` exists and its `projectId` resolves in
   `~/.tkn/codex-context/state/index.jsonl` for the current workspace.

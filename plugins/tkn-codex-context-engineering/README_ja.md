@@ -68,6 +68,9 @@ plugins/tkn-codex-context-engineering/lib/tkn_codex_context/
 - `init-project-context`:
   - repository の Codex project identity を初期化または更新し、小さな local marker
     `.tkn/codex-context.yaml` と private な user-global project registry に保存します。
+- `read-current-working-context`:
+  - 登録済み current project の `working-context.md` を、新しい chat、project 状況確認、resume、
+    handoff のための read-only orientation として読みます。
 - `write-current-working-context`:
   - `~/.tkn/codex-context/state/<projectId>/working-context.md` を project の現在状態を示す
     lightweight dashboard として作成または更新します。
@@ -120,6 +123,8 @@ plugins/tkn-codex-context-engineering/lib/tkn_codex_context/
 Project 初期化は readiness gate であり、自動発動の trigger ではありません。
 
 - Skill は、ユーザーの意図がその Skill に一致した場合に使います。
+- 新しい chat で project orientation が必要な場合は `read-current-working-context` を使います。
+  登録済みという理由だけで dashboard を自動的に読みません。
 - Project-scoped な context を読んだり書いたりする Skill では、現在の repository が意図的に
   登録済みであることも必要です。つまり `.tkn/codex-context.yaml` が存在し、その
   `projectId` が `~/.tkn/codex-context/state/index.jsonl` で現在の workspace に解決できる

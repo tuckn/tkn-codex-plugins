@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.10.0",
-  "description": "Initialize Codex projects, refresh private project context from chat history, search and review Codex chats across projects, and manage sessions, decisions, memos, freshness, and distillation.",
+  "version": "0.11.0",
+  "description": "Initialize Codex projects, read and refresh private project context, search and review Codex chats across projects, and manage sessions, decisions, memos, freshness, and distillation.",
   "author": {
     "name": "Tuckn"
   },
@@ -12,6 +12,7 @@
     "codex",
     "context",
     "project-registry",
+    "working-context",
     "session-logs",
     "session-notes",
     "decisions",
@@ -26,8 +27,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
-    "shortDescription": "Initialize projects, write private state, and reuse durable context",
-    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, versioned private context under ~/.tkn/codex-context, project-scoped refresh from Codex chat history, working dashboards, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
+    "shortDescription": "Read and maintain private Codex project context",
+    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, read-only current-project orientation from private working dashboards, project-scoped refresh from Codex chat history, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -35,7 +36,7 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Initialize this repository in the private Codex context registry",
+      "Read this project's current working context",
       "Refresh this project's session notes, decisions, and working context from Codex chat history",
       "Resume an existing project session note"
     ],
