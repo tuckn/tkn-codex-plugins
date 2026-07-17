@@ -1,13 +1,191 @@
 # Tuckn Codex Context Engineering
 
-[English](README.md) | [日本語](README_ja.md)
+English | [日本語](README_ja.md)
 
 This plugin helps Codex pick up project work where it left off. It keeps lightweight notes about a
 repository, active work, and important decisions, then uses those notes to make future chats easier
 to resume.
 
-When you ask it to, it can also look back through older Codex chat logs and project notes stored in
+When explicitly requested, it can also search older Codex chat logs and project notes stored under
 `~/.tkn/codex-context`.
+
+## Design Philosophy
+
+The purpose of this plugin is not to preserve chat transcripts for their own sake. Its purpose is to
+progressively distill temporary Codex conversations into resumable project context, durable
+project decisions, concise current-state dashboards, and reusable knowledge that can cross project
+boundaries.
+
+Context has different lifetimes, scopes, confidence levels, and uses, so the plugin does not place
+all context in one large file. Instead, context matures through the following pipeline:
+
+```text
+Codex chat transcript
+  -> project session note
+  -> project decision / project working context
+  -> all-project working context / global decision
+  -> insight, Skill, automation, monthly review, durable note
+```
+
+This lifecycle treats raw chats as source evidence rather than current truth. Each layer compresses,
+validates, and selects the material required by the next layer.
+
+### 1. Register The Project
+
+Use `init-project-context` first to create a stable identity between a Codex Project folder and the
+private context store.
+
+- The repository keeps only a small `.tkn/codex-context.yaml` marker.
+- Private context lives under `~/.tkn/codex-context/state/<projectId>/`.
+- Folder renames, moves, and alternate checkouts should preserve the same logical project identity
+  whenever the evidence is unambiguous.
+
+Initialization is a readiness gate. It does not automatically create session notes, decisions,
+working-context updates, reviews, or global context.
+
+### 2. Convert A Chat Into A Session Note
+
+`write-session-note` converts non-trivial work performed in one Codex chat or thread into a
+project-scoped record that can be resumed and reviewed later.
+
+A session note is not a shortened transcript. It is a handoff record designed to prevent a future
+human or Codex session from repeating the same work.
+
+It primarily records:
+
+- the intended outcome and done criteria;
+- current progress and state;
+- user approvals, corrections, rejections, preferences, and constraints;
+- changed files and validation results;
+- important decision candidates;
+- successful approaches and meaningful failed approaches;
+- unresolved issues, next steps, and the exact next step.
+
+A session note remains source-near context. By itself, it is not project current truth or a durable
+rule.
+
+### 3. Promote Durable Judgement Into A Decision
+
+`record-decision` promotes a judgement from a session into a durable decision record when future
+humans or Codex sessions should continue to reuse it after the current chat.
+
+Decisions are not limited to architecture. They can cover project scope, product direction,
+solution design, workflow, operations, documentation, repository conventions, collaboration
+processes, and important rejected alternatives.
+
+A decision record should make clear:
+
+- the problem or trade-off being resolved;
+- the selected decision and its rationale;
+- consequences and operational implications;
+- alternatives rejected and the evidence for rejecting them;
+- whether the scope is `project`, `user`, `global`, or `mixed`;
+- whether repository documentation, working context, global context, or a Skill must be updated.
+
+### 4. Maintain Project Current Truth
+
+`write-current-working-context` uses session notes, decisions, current repository files, and Git
+state to maintain a concise dashboard of what is currently true for the Codex Project.
+
+`working-context.md` is an orientation layer, not a detailed history. A new chat should be able to
+understand the following without reading every session note and decision:
+
+- the project purpose and current outcome;
+- active workstreams;
+- confirmed current truth;
+- important constraints and risks;
+- recently effective decisions;
+- key files to read when resuming;
+- the next maintenance action or exact resumption point.
+
+A session note answers, “What happened in this chat?” Working context answers, “What is true now?”
+When information becomes stale, working context replaces or removes it instead of preserving it as
+a chronological append-only log.
+
+### 5. Integrate The Current State Of All Codex Projects
+
+The intended design uses each project's `working-context.md` as the source of truth for an
+all-project dashboard at:
+
+```text
+C:\tkn\home\personal\workspaces\managing\Codex\Windows\codex-context\state\working-context.md
+```
+
+This user-global working context should not summarize raw chat transcripts or every session note
+directly. It should aggregate already-distilled project current truth to provide a portfolio-level
+view of project relationships, priorities, blockers, and next work.
+
+Expected contents include:
+
+- active, paused, blocked, and archived projects;
+- each project's purpose, status, current focus, and next step;
+- dependencies and duplicated work across projects;
+- shared constraints, risks, and open loops;
+- stale project context that requires review or maintenance.
+
+### 6. Generate Cross-Project Knowledge And Insight
+
+The intended design also reviews context across projects and promotes material that remains useful
+after project-specific details are removed.
+
+Global decision destination:
+
+```text
+C:\tkn\home\personal\workspaces\managing\Codex\Windows\codex-context\data\decisions
+```
+
+Candidates include:
+
+- working conventions reusable across projects;
+- collaboration rules for working with Codex;
+- durable user preferences;
+- principles for context engineering, documentation, and repository management;
+- negative knowledge that prevents repeated failures;
+- repeated workflows that should become a Skill, script, template, or automation.
+
+Codex chat transcripts can also be reviewed by month while separating Fact Extract, Insight
+Synthesis, and Materialization Candidates. This supports questions such as:
+
+- What work and consultations occurred during the previous month?
+- Which questions, frictions, or manual operations repeated?
+- Which workflows should become Skills or automations?
+- Which decisions, preferences, or reference notes should outlive a project?
+- Which open loops or maintenance debts remain unresolved?
+
+Monthly chat review is a source for historical insight. The current state of all projects should
+instead be derived from each project's `working-context.md`; the two responsibilities must not be
+mixed.
+
+## Context Layers And Responsibilities
+
+| Layer | Primary artifact | Primary question | Update behavior |
+|---|---|---|---|
+| Source | Codex JSONL chat | What was actually discussed? | append-only / read-only |
+| Session | `sessions/*.md` | What happened, and how can this work resume? | updated per thread |
+| Project decision | `decisions/DR-*.md` | Which judgement must remain durable? | durable, status-managed |
+| Project current state | `working-context.md` | What is true in this project now? | stale content replaced |
+| Global current state | user-global `state/working-context.md` | What is the current state across all projects? | aggregated from project dashboards |
+| Global knowledge | user-global `data/decisions/` and related artifacts | What should be reused across projects? | reviewed promotion |
+| Insight / materialization | monthly reviews, Skill candidates, and related notes | What should be improved, automated, or systematized? | periodic review |
+
+This separation preserves detailed evidence while allowing everyday work to read only small,
+trustworthy context artifacts.
+
+## Context Quality Principles
+
+Every artifact should remain understandable to humans and predictable enough for AI-assisted
+extraction and comparison.
+
+- **Separate current truth from history:** do not bury current state in chronological logs.
+- **Separate facts, decisions, inferences, and candidates:** assistant proposals are not user-approved facts.
+- **Preserve evidence and provenance:** important decisions and insights should be traceable to source sessions, files, or validation.
+- **One artifact, one responsibility:** do not merge the roles of sessions, decisions, working context, and reviews.
+- **Use explicit promotion:** track whether context was propagated and where it was materialized.
+- **Preserve negative knowledge:** record meaningful failures and the conditions required before retrying them.
+- **Apply progressive compression:** downstream context should become shorter, more general, and more stable.
+- **Keep a human review boundary:** global context, Skills, and automations require review and approval before materialization.
+- **Default to privacy:** do not place private paths, customer data, or secrets in public repository files.
+- **Prefer current evidence:** current user instructions, repository files, and Git state override historical context.
 
 ## Local And Global Context
 
