@@ -43,7 +43,7 @@ working context の作成または更新依頼には `write-current-working-cont
 ## Read Workflow
 
 1. 解決した `working-context.md` を Frontmatter から本文末尾まで全体で読む。
-2. Frontmatter の `type`、`status`、`updated` を確認する。`projectId` がある場合は marker と一致することも確認する。
+2. Frontmatter の `type`、`schemaVersion`、`status`、`updated` を確認する。`schemaVersion` がない場合は legacy v1 として読む。`1` 以外の場合は対応形式を推測せず、unsupported version として報告する。`projectId` がある場合は marker と一致することも確認する。
 3. purpose、current truth、active work、important constraints、recent decisions、key files、next maintenance を抽出する。
 4. 現在の依頼の理解に必要な link だけを選び、関連する session note、decision record、plan、spec を選択的に読む。
 5. `project:/<path>` は registry で検証済みの `currentRoot`、`state:/<path>` は検証済み `workingContextPath` の親 folder を基準に解決する。

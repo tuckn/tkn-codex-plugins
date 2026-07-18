@@ -79,7 +79,8 @@ Initialization behavior:
 - Create or update `.tkn/codex-context.yaml` with `projectId`, `title`, `description`, `createdAt`, and `updatedAt`.
 - Preserve an existing local `description`, including an intentional empty string, unless `--description` is provided.
 - Do not seed `.tkn/codex-context.yaml` `description` from `working-context.md`; when no marker description or `--description` is available, write `description: ""`.
-- Create `~/.tkn/codex-context/state/<projectId>/working-context.md`, `sessions/`, `decisions/`, and `memos/`.
+- Create `~/.tkn/codex-context/state/<projectId>/working-context.md` with `schemaVersion: 1`, plus `sessions/`, `decisions/`, and `memos/`.
+- Treat an existing working context without `schemaVersion` as legacy v1 and add `schemaVersion: 1` when initialization updates it. Refuse to rewrite an unsupported version.
 - Store `workspaceId`, `repoId`, local root, project state paths, status, sensitivity, and `lastSeenAt` in `~/.tkn/codex-context/state/index.jsonl`.
 
 ## Commands

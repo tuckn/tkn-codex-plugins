@@ -48,6 +48,7 @@ from tkn_codex_context.file_io import (  # noqa: E402
     write_text,
 )
 from tkn_codex_context.frontmatter import (  # noqa: E402
+    ensure_artifact_schema_version,
     frontmatter_key_block,
     replace_frontmatter_scalar,
     split_frontmatter_lines,
@@ -199,6 +200,7 @@ def repo_id_from_remote_or_record(remote: str, record: dict[str, object] | None)
 def render_minimal_working_context(*, title: str, project_id: str, updated: str) -> str:
     metadata = frontmatter([
         ("type", "workingContext"),
+        ("schemaVersion", 1),
         ("title", title),
         ("description", f"Current truth for {title}."),
         ("projectId", project_id),
@@ -256,11 +258,13 @@ def update_working_context_identity(
         return render_minimal_working_context(title=title, project_id=project_id, updated=updated)
     if existing_text.startswith("---"):
         lines, body = split_frontmatter_lines(existing_text)
+        lines = ensure_artifact_schema_version(lines, "working context")
         lines = replace_frontmatter_scalar(lines, "projectId", project_id)
         lines = replace_frontmatter_scalar(lines, "updated", updated)
         return "".join(lines) + body
     metadata = frontmatter([
         ("type", "workingContext"),
+        ("schemaVersion", 1),
         ("title", title),
         ("description", f"Current truth for {title}."),
         ("projectId", project_id),

@@ -8,6 +8,7 @@ from .common import yaml_string
 
 
 FRONTMATTER_PATTERN = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n?", re.DOTALL)
+ARTIFACT_SCHEMA_VERSION = "1"
 
 
 def strip_frontmatter(text: str) -> str:
@@ -99,6 +100,32 @@ def replace_frontmatter_list(lines: list[str], key: str, values: list[str]) -> l
         return lines[:start] + replacement + lines[end:]
     return lines[:-1] + replacement + lines[-1:]
 
+def require_supported_artifact_schema(
+    metadata: dict[str, str],
+    artifact_label: str,
+) -> str:
+    """Treat unversioned artifacts as legacy v1 and reject unknown versions."""
+    version = metadata.get("schemaVersion") or ARTIFACT_SCHEMA_VERSION
+    if version != ARTIFACT_SCHEMA_VERSION:
+        raise SystemExit(
+            f"Unsupported {artifact_label} schemaVersion: {version}. "
+            f"Supported version: {ARTIFACT_SCHEMA_VERSION}."
+        )
+    return version
+
+def ensure_artifact_schema_version(
+    lines: list[str],
+    artifact_label: str,
+) -> list[str]:
+    """Add an explicit v1 marker when a supported legacy artifact is updated."""
+    metadata = parse_simple_frontmatter("".join(lines))
+    require_supported_artifact_schema(metadata, artifact_label)
+    if frontmatter_key_block(lines, "schemaVersion"):
+        return lines
+    type_block = frontmatter_key_block(lines, "type")
+    insert_at = type_block[1] if type_block else 1
+    return lines[:insert_at] + [f"schemaVersion: {ARTIFACT_SCHEMA_VERSION}\n"] + lines[insert_at:]
+
 def normalized_context_ref(value: str) -> str:
     return value.strip().replace("\\", "/")
 
@@ -136,4 +163,3 @@ def unique_ordered(values: Iterable[str]) -> list[str]:
         seen.add(value)
         result.append(value)
     return result
-

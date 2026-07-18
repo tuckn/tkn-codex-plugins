@@ -48,6 +48,7 @@ Project `sessions/` 全体を理解目的で読まない。読むのは指定 se
 2. 指定 session note を解決して読む。
 3. session note の Frontmatter を確認する。
    - `type: session` であること。
+   - `schemaVersion: 1` であること。未記載なら legacy v1 として読み、実際に更新する場合は `1` を追加する。`1` 以外なら書き換えを停止する。
    - `sessionId` が filename 先頭と対応すること。
    - `status`、`distillationStatus`、`distilledTo` があること。
 4. この chat の canonical session note path を、指定 session note として扱う。

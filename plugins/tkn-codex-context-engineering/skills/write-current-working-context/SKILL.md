@@ -88,6 +88,7 @@ repository により良い構造がない限り、この構造を使う。
 ```md
 ---
 type: workingContext
+schemaVersion: 1
 title: <working-context-title>
 description: <short-summary>
 generator: Codex
@@ -120,6 +121,7 @@ updated: YYYY-MM-DDTHH:mm:ss<system-timezone-offset-with-colon>
 ### Frontmatter policy
 
 - `type`: 必ず `workingContext`。
+- `schemaVersion`: 必ず `1`。この version は working context の Frontmatter と本文 section の構造契約を表す。
 - `title`: working context の表示用タイトル。
 - `description`: repository current truth の概要。空欄は `""` とするが、scan できる短い説明をできるだけ書く。
 - `generator`: 必ず `Codex`。
@@ -130,6 +132,14 @@ updated: YYYY-MM-DDTHH:mm:ss<system-timezone-offset-with-colon>
 - `updated`: working context の内容を最後に更新した日時。Skill が本文または Frontmatter を更新したら必ず更新する。
 
 `status` は working context 自体の鮮度・有効性だけを表す。global context へ取り込まれたかは `promotionStatus` と `promotedTo` で表す。
+
+### Schema compatibility
+
+- 新規 working context には `schemaVersion: 1` を必ず書く。
+- `schemaVersion` がない既存 working context は legacy v1 として読める。
+- Legacy v1 の本文または Frontmatter を更新する場合は、内容を維持したまま `schemaVersion: 1` を追加する。
+- `schemaVersion` が `1` 以外の場合は、対応形式を推測して書き換えず、unsupported version として報告する。
+- `schemaVersion` を上げるのは、field の意味、必須 field、本文 section、または downstream extraction contract に互換性のない変更を加える場合だけにする。
 
 各 section は短く保つ。dashboard であり detailed report ではない。
 

@@ -57,6 +57,7 @@ class DistillSessionContextTests(unittest.TestCase):
                 )
             self.assertEqual(0, result)
             finalized = session.read_text(encoding="utf-8")
+            self.assertIn("type: session\nschemaVersion: 1\n", finalized)
             self.assertIn('distillationStatus: "distilled"', finalized)
             self.assertIn(ref, finalized)
 
@@ -66,6 +67,26 @@ class DistillSessionContextTests(unittest.TestCase):
             session.write_text("---\ntype: session\n---\n", encoding="utf-8")
             with self.assertRaisesRegex(SystemExit, "requires --dest"):
                 distill.main(["--session", str(session), "--dry-run"])
+
+    def test_rejects_unknown_session_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            session = root / "session.md"
+            original = "---\ntype: session\nschemaVersion: 99\n---\n"
+            session.write_text(original, encoding="utf-8")
+
+            with self.assertRaisesRegex(SystemExit, "Unsupported session note schemaVersion: 99"):
+                distill.finalize_main(
+                    [
+                        "--session",
+                        str(session),
+                        "--status",
+                        "no-action",
+                        "--write",
+                    ]
+                )
+
+            self.assertEqual(original, session.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

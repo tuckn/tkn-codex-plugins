@@ -60,6 +60,7 @@ chat/thread ごとに 1 file を作成または更新する。
 ```md
 ---
 type: session
+schemaVersion: 1
 title: <session-title>
 description: <short-summary>
 generator: Codex
@@ -107,6 +108,7 @@ sessionId: YYYYMMDDTHHMMSS<system-timezone-offset>
 ### Frontmatter policy
 
 - `type`: 必ず `session`。
+- `schemaVersion`: 必ず `1`。この version は session note の Frontmatter と本文 section の構造契約を表す。
 - `title`: session note の表示用タイトル。filename slug の単純な重複ではなく、作業内容が scan できる短い title を書く。
 - `description`: session の概要。空欄は `""` とするが、後続の context distillation が判断できる短い説明をできるだけ書く。
 - `generator`: 必ず `Codex`。
@@ -118,6 +120,14 @@ sessionId: YYYYMMDDTHHMMSS<system-timezone-offset>
 - `sessionId`: filename 先頭の `YYYYMMDDTHHMMSS<system-timezone-offset>`。Vault の file-management metadata として `updated` の下に置く。
 
 `status` は作業ライフサイクルだけを表す。session 内の raw context が decisions や working context に取り込まれたかは `distillationStatus` と `distilledTo` で表す。
+
+### Schema compatibility
+
+- 新規 session note には `schemaVersion: 1` を必ず書く。
+- `schemaVersion` がない既存 session note は legacy v1 として読める。
+- Legacy v1 の本文または Frontmatter を更新する場合は、内容を維持したまま `schemaVersion: 1` を追加する。
+- `schemaVersion` が `1` 以外の場合は、対応形式を推測して書き換えず、unsupported version として報告する。
+- `schemaVersion` を上げるのは、field の意味、必須 field、本文 section、または downstream extraction contract に互換性のない変更を加える場合だけにする。
 
 ### Codex chat provenance
 

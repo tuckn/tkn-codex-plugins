@@ -35,6 +35,7 @@ decision record の Frontmatter を一次 index として扱う。
 必ず確認する metadata:
 
 - `type`
+- `schemaVersion`
 - `title`
 - `description`
 - `status`
@@ -43,6 +44,8 @@ decision record の Frontmatter を一次 index として扱う。
 - `promotedTo`
 - `updated`
 - `decisionId`
+
+`schemaVersion` がない decision record は legacy v1 として review できる。実際にその record を更新する場合は `schemaVersion: 1` を追加する。`1` 以外の record は対応形式を推測して編集または promote せず、unsupported version として review result に分離する。
 
 本文を読む前に、filenames と Frontmatter で対象をできるだけ絞る。
 

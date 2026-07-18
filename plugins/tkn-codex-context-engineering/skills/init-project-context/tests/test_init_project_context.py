@@ -56,6 +56,7 @@ class InitProjectContextTests(unittest.TestCase):
         working_context = (project_state / "working-context.md").read_text(
             encoding="utf-8"
         )
+        self.assertIn("schemaVersion: 1", working_context)
         self.assertIn("`state:/working-context.md`", working_context)
         self.assertIn("`state:/sessions/`", working_context)
         self.assertIn("`state:/decisions/`", working_context)
@@ -71,6 +72,58 @@ class InitProjectContextTests(unittest.TestCase):
         )
         self.assertEqual(project_id, project.yaml_value(marker.read_text(), "projectId"))
         self.assertIn("reuse-workspace", second_output)
+
+    def test_refresh_adds_schema_version_to_legacy_working_context(self) -> None:
+        store = self.root / "store"
+        repo = self.root / "example-repo"
+        repo.mkdir()
+        self.run_main("--target", str(store), "--repo-root", str(repo), "--write")
+
+        marker = repo / ".tkn" / "codex-context.yaml"
+        project_id = project.yaml_value(marker.read_text(), "projectId")
+        working_context_path = store / "state" / project_id / "working-context.md"
+        working_context_path.write_text(
+            "---\n"
+            "type: workingContext\n"
+            "title: Legacy dashboard\n"
+            "updated: 2026-01-01T00:00:00+09:00\n"
+            "---\n\n"
+            "# Working Context\n\n"
+            "Preserve this body.\n",
+            encoding="utf-8",
+        )
+
+        result, _ = self.run_main(
+            "--target", str(store), "--repo-root", str(repo), "--write"
+        )
+
+        self.assertEqual(0, result)
+        refreshed = working_context_path.read_text(encoding="utf-8")
+        self.assertIn("type: workingContext\nschemaVersion: 1\n", refreshed)
+        self.assertIn("Preserve this body.", refreshed)
+
+    def test_refresh_rejects_unknown_working_context_schema(self) -> None:
+        store = self.root / "store"
+        repo = self.root / "example-repo"
+        repo.mkdir()
+        self.run_main("--target", str(store), "--repo-root", str(repo), "--write")
+
+        marker = repo / ".tkn" / "codex-context.yaml"
+        project_id = project.yaml_value(marker.read_text(), "projectId")
+        working_context_path = store / "state" / project_id / "working-context.md"
+        original = (
+            "---\n"
+            "type: workingContext\n"
+            "schemaVersion: 99\n"
+            "---\n\n"
+            "# Future Working Context\n"
+        )
+        working_context_path.write_text(original, encoding="utf-8")
+
+        with self.assertRaisesRegex(SystemExit, "Unsupported working context schemaVersion: 99"):
+            self.run_main("--target", str(store), "--repo-root", str(repo), "--write")
+
+        self.assertEqual(original, working_context_path.read_text(encoding="utf-8"))
 
     def test_dry_run_is_read_only(self) -> None:
         store = self.root / "store"

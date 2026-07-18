@@ -278,6 +278,14 @@ extraction and comparison.
 - **Default to privacy:** do not place private paths, customer data, or secrets in public repository files.
 - **Prefer current evidence:** current user instructions, repository files, and Git state override historical context.
 
+### Artifact Schema Versioning
+
+Project session notes, decision records, and working contexts use `schemaVersion: 1`.
+An existing artifact without `schemaVersion` is treated as legacy v1 and receives the explicit
+version when it is next updated. A reader or writer must not guess the structure of an unsupported
+version. Increment the version only for an incompatible change to field meaning, required metadata,
+body sections, or a downstream extraction contract.
+
 ## Local And Global Context
 
 The plugin keeps a small repo-local project marker, while private project context lives in the

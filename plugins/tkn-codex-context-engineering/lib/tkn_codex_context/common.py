@@ -125,7 +125,7 @@ def source_repo(args: argparse.Namespace) -> str:
         return args.source_repo
     return Path.cwd().resolve().name
 
-def frontmatter(fields: list[tuple[str, str | list[str]]]) -> str:
+def frontmatter(fields: list[tuple[str, str | int | list[str]]]) -> str:
     lines = ["---"]
     for key, value in fields:
         if isinstance(value, list):
@@ -135,6 +135,8 @@ def frontmatter(fields: list[tuple[str, str | list[str]]]) -> str:
             else:
                 lines.append(f"{key}:")
                 lines.append(rendered)
+        elif type(value) is int:
+            lines.append(f"{key}: {value}")
         else:
             lines.append(f"{key}: {yaml_string(value)}")
     lines.append("---")
@@ -152,4 +154,3 @@ def print_result(result: Result, write: bool, log: str | None) -> None:
         path = expand(log)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(output + "\n", encoding="utf-8")
-

@@ -29,8 +29,10 @@ from tkn_codex_context.common import (  # noqa: E402
 )
 from tkn_codex_context.file_io import require_explicit_output_dest, write_text  # noqa: E402
 from tkn_codex_context.frontmatter import (  # noqa: E402
+    ensure_artifact_schema_version,
     frontmatter_list_value,
     parse_simple_frontmatter,
+    require_supported_artifact_schema,
     replace_frontmatter_list,
     replace_frontmatter_scalar,
     split_frontmatter_lines,
@@ -180,6 +182,7 @@ def distill_session(args: argparse.Namespace) -> Result:
         raise SystemExit(f"Sensitive-looking content detected in {session_path}; refusing to distill.")
 
     metadata = parse_simple_frontmatter(text)
+    require_supported_artifact_schema(metadata, "session note")
     if metadata.get("type") and metadata.get("type") != "session":
         result.warn(f"source type is {metadata.get('type')}, expected session")
     sections = markdown_sections(text)
@@ -212,6 +215,7 @@ def finalize_session_distillation(args: argparse.Namespace) -> Result:
     text = session_path.read_text(encoding="utf-8", errors="replace")
     header_lines, body = split_frontmatter_lines(text)
     metadata = parse_simple_frontmatter(text)
+    require_supported_artifact_schema(metadata, "session note")
     if metadata.get("type") and metadata.get("type") != "session":
         result.warn(f"source type is {metadata.get('type')}, expected session")
 
@@ -223,7 +227,8 @@ def finalize_session_distillation(args: argparse.Namespace) -> Result:
         distilled_refs = unique_ordered([*existing_refs, *new_refs])
 
     updated = now_iso()
-    updated_header = replace_frontmatter_scalar(header_lines, "distillationStatus", args.status)
+    updated_header = ensure_artifact_schema_version(header_lines, "session note")
+    updated_header = replace_frontmatter_scalar(updated_header, "distillationStatus", args.status)
     updated_header = replace_frontmatter_list(updated_header, "distilledTo", distilled_refs)
     updated_header = replace_frontmatter_scalar(updated_header, "updated", updated)
     updated_text = "".join(updated_header) + body

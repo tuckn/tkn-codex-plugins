@@ -64,6 +64,7 @@ decision が現在の session 後も有用であるべき場合、decision recor
 ```md
 ---
 type: decision
+schemaVersion: 1
 title: <decision-title>
 description: <short-summary>
 generator: Codex
@@ -96,6 +97,7 @@ decisionId: DR-NNNN
 ### Frontmatter policy
 
 - `type`: 必ず `decision`。
+- `schemaVersion`: 必ず `1`。この version は decision record の Frontmatter と本文 section の構造契約を表す。
 - `title`: decision の表示用タイトル。`DR-NNNN:` は含めず、H1 と対応する title を書く。
 - `description`: decision の概要。空欄は `""` とするが、後続の review / promote が判断できる短い説明をできるだけ書く。
 - `generator`: 必ず `Codex`。
@@ -108,6 +110,14 @@ decisionId: DR-NNNN
 - `decisionId`: filename 先頭の `DR-NNNN`。Vault の file-management metadata として `updated` の下に置く。
 
 `status` は decision の採否・有効性だけを表す。global context へ取り込まれたかは `promotionStatus` と `promotedTo` で表す。
+
+### Schema compatibility
+
+- 新規 decision record には `schemaVersion: 1` を必ず書く。
+- `schemaVersion` がない既存 decision record は legacy v1 として読める。
+- Legacy v1 の本文または Frontmatter を更新する場合は、内容を維持したまま `schemaVersion: 1` を追加する。
+- `schemaVersion` が `1` 以外の場合は、対応形式を推測して書き換えず、unsupported version として報告する。
+- `schemaVersion` を上げるのは、field の意味、必須 field、本文 section、または downstream extraction contract に互換性のない変更を加える場合だけにする。
 
 ## Status values
 

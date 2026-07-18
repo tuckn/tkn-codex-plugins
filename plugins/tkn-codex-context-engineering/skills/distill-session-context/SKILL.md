@@ -23,10 +23,11 @@ The marker file alone does not trigger distillation or finalization. If project 
    - Prefer a user-specified `~/.tkn/codex-context/state/<projectId>/sessions/*.md` file.
    - If none is specified, inspect project `working-context.md` or ask for the intended session note when multiple candidates are plausible.
 2. Optionally run `audit-context-freshness` first when the session is old or `distillationStatus` is pending/partial.
-3. Run a dry-run distillation to confirm the output path and extracted sections.
-4. Use `--write` only when a durable candidate file is useful.
-5. Review the generated candidate before promoting anything.
-6. After accepted content exists somewhere durable, finalize the source session metadata.
+3. Treat a missing `schemaVersion` as legacy v1. Refuse an unsupported version; when finalization updates legacy v1 metadata, add `schemaVersion: 1`.
+4. Run a dry-run distillation to confirm the output path and extracted sections.
+5. Use `--write` only when a durable candidate file is useful.
+6. Review the generated candidate before promoting anything.
+7. After accepted content exists somewhere durable, finalize the source session metadata.
 
 ## Commands
 
