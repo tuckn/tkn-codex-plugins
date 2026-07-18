@@ -35,6 +35,82 @@ Project decision と project working context までの project-scoped stage は 
 project の portfolio 集約と user-global decision への最終書き込みは、今後の downstream stage
 として想定していますが、現時点では bundled write Skill として提供していません。
 
+### 3つの利用ループ
+
+この lifecycle は、目的と発動境界が異なる3つの loop として利用します。各 loop は artifact を
+共有しますが、同じ処理を行うものではありません。
+
+#### 日常の project work
+
+登録済み Codex Project で通常の作業を行うときに使います。
+
+```text
+init-project-context（初回のみ）
+  -> read-current-working-context または resume-session
+  -> 作業を実施
+  -> 非自明または再開可能にすべき作業では write-session-note
+  -> chat を超えて残す判断がある場合は record-decision
+  -> project current truth が変わった場合は write-current-working-context
+```
+
+読み取りと書き込みは意図的に分離します。新しい chat は timestamp や context file を変更せずに
+orientation できます。Trivial な作業では session note は不要です。また、対応する durable state
+が実際に変わらない限り、通常作業だけを理由に decision を作成したり dashboard を更新したり
+しません。
+
+#### 取りこぼした context の補完
+
+過去 chat が記録されていない、または手動更新を逃した可能性があり、project context が不完全な
+場合に使います。
+
+```text
+current project の Codex JSONL chats
+  -> refresh-project-context-from-chats
+  -> thread ごとに1つの session note を reconcile
+  -> durable project decisions を作成または更新
+  -> project working context を最後に1回更新
+```
+
+この loop は現在の登録済み project だけを対象にします。Chat log は read-only evidence として扱い、
+初回後は新規または変更された source fingerprint だけを処理します。Registry 内の全 project を
+一括処理しません。
+
+#### Project 横断 review と materialization
+
+登録済み project 全体の状況を理解し、再利用可能な知識を見つけるときに使います。
+
+```text
+fresh な project working contexts + reviewed project decisions + monthly chat reviews
+  -> audit と project 横断 review
+  -> portfolio、global decision、Skill、automation の candidates
+  -> human review と承認
+  -> external または future materialization
+```
+
+Project dashboard は portfolio の current input、月次 chat review は historical insight を提供します。
+Candidate review は実装済みですが、portfolio 集約と最終的な user-global write は現在の bundled
+write surface の外にあります。
+
+### Source of truth の優先順位
+
+情報が矛盾する場合は次の順序で扱います。下位の source が上位の source を暗黙に上書きしては
+いけません。
+
+1. **Current explicit user instruction:** ユーザーによる最新の承認、修正、拒否、constraint。
+2. **問いに対する current primary evidence:**
+   - 実装済みの状態を判断する場合は、current repository files、Git state、tests、runtime evidence。
+   - 意図した policy を判断する場合は、Accepted decision と current durable repository guidance。
+3. **Fresh な project working context:** 関連 evidence へ案内する短い orientation dashboard。
+   Current files や Accepted decision より上位の authority ではありません。
+4. **関連する project records:** rationale、history、handoff detail を提供する decision records、
+   session notes、reviewed candidates。
+5. **Raw Codex chats と assistant proposals:** source evidence としてだけ扱い、単独では current truth
+   または user-approved decision と見なしません。
+
+Accepted intent と observed implementation が異なる場合は、どちらかを隠して選ぶのではなく、
+「Accepted だが未実装」のように両方を明示します。Stale または検証不能な context は、project
+または project 横断 artifact に反映する前に再検証します。
+
 ### 1. Project を登録する
 
 最初に `init-project-context` を使い、Codex Project folder と private context store の間に

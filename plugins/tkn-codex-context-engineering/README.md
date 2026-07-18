@@ -36,6 +36,85 @@ also implemented. Registered-project portfolio aggregation and final writes to u
 decisions remain intended downstream stages; they are not currently exposed as bundled write
 Skills.
 
+### Three Usage Loops
+
+The lifecycle is used through three related loops. They share artifacts but have different
+purposes and activation boundaries.
+
+#### Daily Project Work
+
+Use this loop for normal work in one registered Codex Project.
+
+```text
+init-project-context (once)
+  -> read-current-working-context or resume-session
+  -> perform the work
+  -> write-session-note for non-trivial or resumable work
+  -> record-decision when a judgement must outlive the chat
+  -> write-current-working-context when project current truth changed
+```
+
+Reading and writing are intentionally separate. A new chat can orient itself without changing
+timestamps or context files. Trivial work does not require a session note, and routine work does
+not create a decision or update the dashboard unless the corresponding durable state actually
+changed.
+
+#### Missed-Context Recovery
+
+Use this loop when project context may be incomplete because earlier chats were not recorded or a
+manual update was missed.
+
+```text
+current-project Codex JSONL chats
+  -> refresh-project-context-from-chats
+  -> reconcile one session note per thread
+  -> create or update durable project decisions
+  -> update the project working context once
+```
+
+This loop is limited to the current registered project. It uses chat logs as read-only evidence,
+processes only new or changed source fingerprints after the first run, and does not sweep every
+project in the registry.
+
+#### Cross-Project Review And Materialization
+
+Use this loop to understand work across registered projects and identify reusable knowledge.
+
+```text
+fresh project working contexts + reviewed project decisions + monthly chat reviews
+  -> audit and cross-project review
+  -> portfolio, global-decision, Skill, or automation candidates
+  -> human review and approval
+  -> external or future materialization
+```
+
+Project dashboards provide current portfolio inputs; monthly chat reviews provide historical
+insight. Candidate review is implemented, while portfolio aggregation and final user-global writes
+remain outside the current bundled write surface.
+
+### Source-Of-Truth Precedence
+
+When sources disagree, use the following order. A lower-priority source must not silently override
+a higher-priority source.
+
+1. **Current explicit user instruction:** the user's latest approval, correction, rejection, or
+   constraint.
+2. **Current primary evidence for the question:**
+   - for observed implementation state, current repository files, Git state, tests, and runtime
+     evidence;
+   - for intended policy, an accepted decision and current durable repository guidance.
+3. **Fresh project working context:** a concise orientation dashboard and index into relevant
+   evidence, not an authority over current files or accepted decisions.
+4. **Relevant project records:** decision records, session notes, and reviewed candidates that
+   provide rationale, history, or handoff detail.
+5. **Raw Codex chats and assistant proposals:** source evidence only; they are not current truth or
+   user-approved decisions by themselves.
+
+If accepted intent and observed implementation differ, preserve both facts explicitly, such as
+"accepted but not yet implemented", instead of choosing one and hiding the mismatch. Stale or
+unverifiable context must be revalidated before it is propagated to project or cross-project
+artifacts.
+
 ### 1. Register The Project
 
 Use `init-project-context` first to create a stable identity between a Codex Project folder and the
