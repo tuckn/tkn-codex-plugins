@@ -53,6 +53,13 @@ class InitProjectContextTests(unittest.TestCase):
         project_id = project.yaml_value(marker.read_text(), "projectId")
         project_state = store / "state" / project_id
         self.assertTrue((project_state / "working-context.md").is_file())
+        working_context = (project_state / "working-context.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("`state:/working-context.md`", working_context)
+        self.assertIn("`state:/sessions/`", working_context)
+        self.assertIn("`state:/decisions/`", working_context)
+        self.assertNotIn("- `working-context.md`", working_context)
         for folder in project.PROJECT_STATE_DIRS:
             self.assertTrue((project_state / folder).is_dir())
         records = project.read_jsonl(store / "state" / "index.jsonl", project.Result())

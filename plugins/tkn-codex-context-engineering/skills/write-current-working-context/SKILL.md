@@ -133,11 +133,34 @@ updated: YYYY-MM-DDTHH:mm:ss<system-timezone-offset-with-colon>
 
 各 section は短く保つ。dashboard であり detailed report ではない。
 
+### Path reference policy
+
+`## Recent Decisions` と `## Key Files` の file または directory reference は、次の logical root を付けて backtick 内に記載する。
+
+- `project:/<path>`: registry で解決した current Codex Project folder を基準にする。
+- `state:/<path>`: registry で検証した current project state folder、つまり `working-context.md` の親 folder を基準にする。
+
+例:
+
+```markdown
+## Recent Decisions
+
+- `state:/decisions/DR-0001-example.md`
+
+## Key Files
+
+- `project:/README.md`
+- `project:/.tkn/codex-context.yaml`
+- `state:/working-context.md`
+```
+
+この2 section では、root のない relative path、Windows separator `\`、root 外へ出る `..` を生成しない。`project:/` と `state:/` は filesystem URI や Markdown link target ではなく、Codex が registry と verified state folder から解決する logical reference である。Project または state の外にある file を意図的に参照する場合だけ、明示的な external path を維持する。
+
 ## Style
 
 - repository の primary language での記述。
 - future sessions が scan しやすい stable headings の維持。
-- repository files には relative paths の利用。
-- absolute paths は repository 外の file を意図的に参照する場合のみ。
+- `Recent Decisions` と `Key Files` の project files には `project:/`、project state files には `state:/` の利用。
+- physical absolute paths は project と state の外の file を意図的に参照する場合のみ。
 - scanability のための bullets 優先。
 - stale items が真でなくなった場合の削除または置換。

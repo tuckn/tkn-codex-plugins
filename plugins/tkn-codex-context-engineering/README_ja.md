@@ -23,6 +23,18 @@ user-global store に置きます。
 - Store root には現行 layout を説明する更新済み `README.md` を置きます。
 - Global context への write は bundled Skill としては提供しません。
 
+### Working-context の path reference
+
+Project `working-context.md` の `Recent Decisions` と `Key Files` にある file・directory
+reference は、次の logical root を使います。
+
+- `project:/<path>` は登録済み Codex Project folder から解決します。
+- `state:/<path>` は `~/.tkn/codex-context/state/<projectId>/` から解決します。
+
+これらは backtick 内に `/` separator で記載する Codex 用の logical reference であり、
+filesystem URI や Markdown link target ではありません。新しい項目には root のない相対pathや、
+logical root の外へ出る `..` を使用しません。
+
 ## Plugin の構成
 
 Plugin path:

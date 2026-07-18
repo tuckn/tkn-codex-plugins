@@ -236,9 +236,9 @@ None.
 
 ## Key Files
 
-- `working-context.md`
-- `sessions/`
-- `decisions/`
+- `state:/working-context.md`
+- `state:/sessions/`
+- `state:/decisions/`
 
 ## Next Maintenance
 

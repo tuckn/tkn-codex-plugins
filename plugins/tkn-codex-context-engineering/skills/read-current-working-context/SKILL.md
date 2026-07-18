@@ -46,7 +46,10 @@ working context の作成または更新依頼には `write-current-working-cont
 2. Frontmatter の `type`、`status`、`updated` を確認する。`projectId` がある場合は marker と一致することも確認する。
 3. purpose、current truth、active work、important constraints、recent decisions、key files、next maintenance を抽出する。
 4. 現在の依頼の理解に必要な link だけを選び、関連する session note、decision record、plan、spec を選択的に読む。
-5. repository-relative path は project root、project-context-relative path は解決済み project state folder を基準にする。
+5. `project:/<path>` は registry で検証済みの `currentRoot`、`state:/<path>` は検証済み `workingContextPath` の親 folder を基準に解決する。
+6. logical reference は `/` separator を使い、`..` で logical root の外へ出る path は解決しない。
+
+`project:/` と `state:/` は filesystem URI や Markdown link target ではない。Legacy working context に root のない relative path が残る場合は、既存の意味に従って repository-relative path を project root、project-context-relative path を project state folder から read-only で解決してよい。ただし、その working context を後で更新する場合は `write-current-working-context` の規則で logical reference に正規化し、legacy notation を新しい記述へ引き継がない。
 
 Project state folder 全体、`sessions/` 全体、`decisions/` 全体、Codex JSONL chat 履歴を orientation のために走査しない。chat 履歴から context を再構築する依頼には `refresh-project-context-from-chats` を使う。
 

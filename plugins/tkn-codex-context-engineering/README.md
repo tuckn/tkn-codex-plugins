@@ -23,6 +23,18 @@ user-global store.
 - The store root keeps an updated `README.md` describing the current layout.
 - Global context writes are not exposed as bundled Skills.
 
+### Working-context path references
+
+In a project `working-context.md`, file and directory references under `Recent Decisions` and
+`Key Files` use logical roots:
+
+- `project:/<path>` resolves from the registered Codex Project folder.
+- `state:/<path>` resolves from `~/.tkn/codex-context/state/<projectId>/`.
+
+These references are written in backticks with `/` separators. They are logical references for
+Codex, not filesystem URIs or Markdown link targets. New entries do not use unqualified relative
+paths or `..` to escape a logical root.
+
 ## Plugin Files
 
 Plugin path:
