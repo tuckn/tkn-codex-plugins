@@ -23,12 +23,18 @@ all context in one large file. Instead, context matures through the following pi
 Codex chat transcript
   -> project session note
   -> project decision / project working context
-  -> all-project working context / global decision
+  -> registered-project portfolio / user-global decision
   -> insight, Skill, automation, monthly review, durable note
 ```
 
 This lifecycle treats raw chats as source evidence rather than current truth. Each layer compresses,
 validates, and selects the material required by the next layer.
+
+The project-scoped stages through project decisions and project working context are implemented by
+the bundled Skills. Monthly all-project chat review and reusable-context candidate generation are
+also implemented. Registered-project portfolio aggregation and final writes to user-global
+decisions remain intended downstream stages; they are not currently exposed as bundled write
+Skills.
 
 ### 1. Register The Project
 
@@ -102,18 +108,22 @@ A session note answers, “What happened in this chat?” Working context answer
 When information becomes stale, working context replaces or removes it instead of preserving it as
 a chronological append-only log.
 
-### 5. Integrate The Current State Of All Codex Projects
+### 5. Integrate The Current State Of Registered Codex Projects
 
-The intended design uses each project's `working-context.md` as the source of truth for an
-all-project dashboard at:
+The intended design uses each registered project's `working-context.md` as the source input for a
+portfolio dashboard at an explicitly configured private destination, for example:
 
 ```text
 <portfolio-context-root>/state/working-context.md
 ```
 
-This user-global working context should not summarize raw chat transcripts or every session note
-directly. It should aggregate already-distilled project current truth to provide a portfolio-level
-view of project relationships, priorities, blockers, and next work.
+This portfolio aggregation stage is part of the intended design but is not currently exposed as a
+bundled write Skill. A future implementation should resolve projects from the private registry and
+require an explicit private destination instead of embedding a machine- or user-specific path.
+
+The resulting user-global working context should not summarize raw chat transcripts or every
+session note directly. It should aggregate already-distilled project current truth to provide a
+portfolio-level view of project relationships, priorities, blockers, and next work.
 
 Expected contents include:
 
@@ -128,7 +138,9 @@ Expected contents include:
 The intended design also reviews context across projects and promotes material that remains useful
 after project-specific details are removed.
 
-Global decision destination:
+The bundled Skills can identify and review global decision candidates, but final materialization
+into user-global decisions remains outside the current bundled write surface. An external or future
+workflow should use an explicitly configured private destination, for example:
 
 ```text
 <portfolio-context-root>/data/decisions/
@@ -158,15 +170,15 @@ mixed.
 
 ## Context Layers And Responsibilities
 
-| Layer | Primary artifact | Primary question | Update behavior |
-|---|---|---|---|
-| Source | Codex JSONL chat | What was actually discussed? | append-only / read-only |
-| Session | `sessions/*.md` | What happened, and how can this work resume? | updated per thread |
-| Project decision | `decisions/DR-*.md` | Which judgement must remain durable? | durable, status-managed |
-| Project current state | `working-context.md` | What is true in this project now? | stale content replaced |
-| Global current state | user-global `state/working-context.md` | What is the current state across all projects? | aggregated from project dashboards |
-| Global knowledge | user-global `data/decisions/` and related artifacts | What should be reused across projects? | reviewed promotion |
-| Insight / materialization | monthly reviews, Skill candidates, and related notes | What should be improved, automated, or systematized? | periodic review |
+| Layer | Primary artifact | Primary question | Update behavior | Current support |
+|---|---|---|---|---|
+| Source | Codex JSONL chat | What was actually discussed? | append-only / read-only | implemented |
+| Session | `sessions/*.md` | What happened, and how can this work resume? | updated per thread | implemented |
+| Project decision | `decisions/DR-*.md` | Which judgement must remain durable? | durable, status-managed | implemented |
+| Project current state | `working-context.md` | What is true in this project now? | stale content replaced | implemented |
+| Global current state | user-global `state/working-context.md` | What is the current state across registered projects? | aggregated from project dashboards | intended; bundled writer not implemented |
+| Global knowledge | user-global `data/decisions/` and related artifacts | What should be reused across projects? | reviewed promotion | candidate review implemented; final write external |
+| Insight / materialization | monthly reviews, Skill candidates, and related notes | What should be improved, automated, or systematized? | periodic review | monthly source review implemented; materialization requires follow-up |
 
 This separation preserves detailed evidence while allowing everyday work to read only small,
 trustworthy context artifacts.
