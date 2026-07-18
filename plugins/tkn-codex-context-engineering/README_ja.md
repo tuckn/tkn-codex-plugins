@@ -9,6 +9,183 @@
 明示的に依頼した場合は、過去の Codex の会話ログや `~/.tkn/codex-context` に置いた
 project note から役立つ内容を探せます。
 
+## 設計思想
+
+この plugin の目的は、chat transcript を保存すること自体ではありません。Codex Project で
+生まれた一時的な会話を、再開可能な project context、長期的な decision、現在状態の
+要約、project 横断の知識へ段階的に蒸留し、人間と生成 AI の両方が再利用できる形で維持する
+ことです。
+
+Context は、寿命、適用範囲、確度、用途が異なるため、1つの巨大なファイルには集約しません。
+代わりに、source から durable context へ次の順序で成熟させます。
+
+```text
+Codex chat transcript
+  -> project session note
+  -> project decision / project working context
+  -> all-project working context / global decision
+  -> insight, Skill, automation, monthly review, durable note
+```
+
+この lifecycle は、raw data をそのまま current truth として扱わず、段階ごとに要約、検証、
+選別する context pipeline です。
+
+### 1. Project を登録する
+
+最初に `init-project-context` を使い、Codex Project folder と private context store の間に
+stable identity を作ります。
+
+- Repository には、小さな `.tkn/codex-context.yaml` marker だけを置きます。
+- Private な context は `~/.tkn/codex-context/state/<projectId>/` に置きます。
+- Folder rename、move、別 checkout があっても、可能な限り同じ logical project identity を
+  維持します。
+
+Initialization は context lifecycle の readiness gate です。登録しただけで、session note、
+decision、working context、review が自動的に生成されるわけではありません。
+
+### 2. Chat を session note に変換する
+
+`write-session-note` は、1つの Codex chat/thread で行った非自明な作業を、後から再開・確認できる
+project-scoped record に変換します。
+
+Session note は transcript の縮約版ではありません。次の chat が作業をやり直さずに済むための
+handoff record です。
+
+主に残すもの:
+
+- 何を達成しようとしたか
+- どこまで完了したか
+- 現在の状態
+- ユーザーが承認、拒否、修正した内容
+- 変更した files と validation result
+- 重要な decision candidates
+- 有効だった方法と、再試行すべきでない failed approaches
+- unresolved issues、next steps、exact next step
+
+Session note は source に近い context であり、単独では project の current truth や durable rule
+とは見なしません。
+
+### 3. 長く残す判断を decision に昇格する
+
+`record-decision` は、session note に含まれる判断のうち、現在の chat を超えて future human または
+Codex が再利用すべきものを durable decision record にします。
+
+Decision は architecture に限定しません。Project scope、solution、design、workflow、operation、
+documentation、repository convention、collaboration process、重要な rejected alternative も対象です。
+
+Decision record では、結論だけでなく次を明確にします。
+
+- どの問題または trade-off に対する判断か
+- 何を選択したか
+- なぜその判断になったか
+- 何が変わり、どのような consequence があるか
+- どの alternatives を、どの根拠で採用しなかったか
+- 適用範囲は project、user、global、mixed のどれか
+- repository docs、working context、global context、Skill への反映が必要か
+
+### 4. Project の current truth を working context に集約する
+
+`write-current-working-context` は、session notes と decision records、current repository files、Git state
+を材料に、その Codex Project の「今」を短い dashboard として維持します。
+
+`working-context.md` は詳細な履歴ではなく、新しい chat が最初に読む orientation layer です。
+すべての session notes や decisions を読まなくても、次を理解できることを目標にします。
+
+- Project の目的と現在の到達点
+- 現在 active な workstream
+- 確定している current truth
+- 重要な constraints と risks
+- 最近有効になった decisions
+- 再開時に読むべき key files
+- 次に行う maintenance または exact resumption point
+
+Session note が「その chat で何が起きたか」を扱うのに対し、working context は「今、何が真か」を
+扱います。古くなった情報は追記で残さず、削除または置換します。
+
+### 5. 全 Codex Project の現在状態を統合する
+
+各 project の `working-context.md` を source of truth として、全 Codex Project の現在状態を次の
+user-global dashboard に統合することを想定します。
+
+```text
+<portfolio-context-root>/state/working-context.md
+```
+
+この global working context は、chat transcript や全 session note を直接要約して作るものでは
+ありません。各 project ですでに蒸留された current truth を集約し、project 間の関係、優先順位、
+blocker、次に着手すべき work を把握するための portfolio-level dashboard です。
+
+想定する内容:
+
+- Active、paused、blocked、archived projects
+- Project ごとの目的、status、current focus、next step
+- Project 間の dependency と duplicated work
+- 共通する constraints、risks、open loops
+- Review または maintenance が必要な stale project context
+
+### 6. Project を超えた知識と洞察を生成する
+
+全 project の context を横断的に review し、project 固有情報を除いても価値が残る内容を、
+user-global context に昇格することを想定します。
+
+Global decisions の保存先:
+
+```text
+<portfolio-context-root>/data/decisions/
+```
+
+ここに残す候補:
+
+- 複数 project で再利用できる working convention
+- Codex との collaboration rule
+- Durable な user preference
+- Context engineering、documentation、repository management の principle
+- 繰り返し発生した failure を避ける negative knowledge
+- Skill、script、template、automation に materialize すべき repeated workflow
+
+また、過去 chat transcript を月単位で review し、Fact Extract、Insight Synthesis、Materialization
+Candidates を分離した source review note を作成します。これにより、次のような問いを扱えます。
+
+- 前月にどのような work と相談を行ったか
+- 同じ質問、friction、manual operation が繰り返されていないか
+- 新しい Skill または automation にすべき workflow はないか
+- Project を超えて残すべき decision、preference、reference note はないか
+- 未完了の open loop や maintenance debt はないか
+
+月次 chat review は historical insight の source です。一方、全 project の「現在状態」は、各 project
+の `working-context.md` から作るべきであり、両者を混同しません。
+
+## Context layers と責務
+
+| Layer | Primary artifact | 主な問い | 更新特性 |
+|---|---|---|---|
+| Source | Codex JSONL chat | 実際に何が話されたか | append-only / read-only |
+| Session | `sessions/*.md` | この chat で何を行い、どう再開するか | thread ごとに更新 |
+| Project decision | `decisions/DR-*.md` | 今後も守る判断は何か | durable、status 管理 |
+| Project current state | `working-context.md` | この project で今何が真か | stale content を置換 |
+| Global current state | user-global `state/working-context.md` | 全 project の今はどうなっているか | project dashboards から集約 |
+| Global knowledge | user-global `data/decisions/` 等 | project を超えて再利用すべきものは何か | reviewed promotion |
+| Insight / Materialization | monthly reviews、Skill candidates 等 | 何を改善、自動化、体系化すべきか | periodic review |
+
+この分離により、詳細な evidence を失わずに、日常利用では小さく信頼できる context だけを読める
+ようにします。
+
+## Context 品質の原則
+
+すべての artifact は、人間が読んで理解でき、生成 AI が機械的に抽出・比較できる必要があります。
+そのため、次を重視します。
+
+- **Current truth と history の分離:** 現在状態を chronological log に埋めない。
+- **Fact、decision、inference、candidate の分離:** Assistant proposal を user-approved fact として扱わない。
+- **Evidence と provenance:** 重要な判断や洞察は source session、file、validation へ辿れるようにする。
+- **One artifact, one responsibility:** Session、decision、working context、review の役割を混ぜない。
+- **Explicit promotion:** 下流へ反映したかを status と destination で追跡する。
+- **Negative knowledge:** 実際に失敗した方法と再試行条件を残し、同じ失敗を繰り返さない。
+- **Progressive compression:** 下流へ進むほど短く、一般化され、安定した内容にする。
+- **Human review boundary:** Global context、Skill、automation への materialization は review と承認を経る。
+- **Privacy by default:** Private paths、customer data、secrets を public repository に書かない。
+- **Current evidence wins:** Current user instructions、repository files、Git state を過去 context より優先する。
+
 ## Local context と Global context
 
 この plugin は、repo-local には小さな project marker だけを置き、private な project context は
