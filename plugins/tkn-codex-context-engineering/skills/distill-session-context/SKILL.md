@@ -111,7 +111,8 @@ The generated file is only a review candidate. Promotion is a separate step.
 
 - Use `record-decision` for accepted repository decisions.
 - Use `write-current-working-context` for accepted repository current truth.
-- Global context writes are outside this bundled Skill set; create a reviewed candidate or decision first.
+- Use `write-global-working-context` only for portfolio current state derived from project
+  dashboards. Reusable user-global decision promotion remains a separate reviewed workflow.
 - Update AGENTS.md or Skills only after checking current repository behavior and public/private path safety.
 - Use finalization only after the accepted destination exists or after review decides `no-action`.
 

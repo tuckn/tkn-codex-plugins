@@ -32,9 +32,9 @@ validates, and selects the material required by the next layer.
 
 The project-scoped stages through project decisions and project working context are implemented by
 the bundled Skills. Monthly all-project chat review and reusable-context candidate generation are
-also implemented. Registered-project portfolio aggregation and final writes to user-global
-decisions remain intended downstream stages; they are not currently exposed as bundled write
-Skills.
+also implemented. Registered-project portfolio aggregation is implemented by
+`write-global-working-context`. Final writes to user-global decisions remain an intended downstream
+stage and are not currently exposed as a bundled write Skill.
 
 ### Three Usage Loops
 
@@ -81,16 +81,20 @@ project in the registry.
 Use this loop to understand work across registered projects and identify reusable knowledge.
 
 ```text
-fresh project working contexts + reviewed project decisions + monthly chat reviews
+fresh project working contexts
+  -> write-global-working-context
+  -> registered-project portfolio
+
+reviewed project decisions + monthly chat reviews
   -> audit and cross-project review
-  -> portfolio, global-decision, Skill, or automation candidates
+  -> global-decision, Skill, or automation candidates
   -> human review and approval
   -> external or future materialization
 ```
 
 Project dashboards provide current portfolio inputs; monthly chat reviews provide historical
-insight. Candidate review is implemented, while portfolio aggregation and final user-global writes
-remain outside the current bundled write surface.
+insight. Portfolio aggregation and candidate review are implemented, while final user-global
+decision writes remain outside the current bundled write surface.
 
 ### Source-Of-Truth Precedence
 
@@ -189,16 +193,16 @@ a chronological append-only log.
 
 ### 5. Integrate The Current State Of Registered Codex Projects
 
-The intended design uses each registered project's `working-context.md` as the source input for a
-portfolio dashboard at an explicitly configured private destination, for example:
+`write-global-working-context` uses each registered project's `working-context.md` as the source
+input for a portfolio dashboard at an explicitly configured private destination, for example:
 
 ```text
 <portfolio-context-root>/state/working-context.md
 ```
 
-This portfolio aggregation stage is part of the intended design but is not currently exposed as a
-bundled write Skill. A future implementation should resolve projects from the private registry and
-require an explicit private destination instead of embedding a machine- or user-specific path.
+The Skill resolves projects from the private registry and requires an explicit destination for
+writes instead of embedding a machine- or user-specific path. It reads project working contexts
+only; it does not read raw chats, session notes, or decision bodies.
 
 The resulting user-global working context should not summarize raw chat transcripts or every
 session note directly. It should aggregate already-distilled project current truth to provide a
@@ -208,9 +212,11 @@ Expected contents include:
 
 - active, paused, blocked, and archived projects;
 - each project's purpose, status, current focus, and next step;
-- dependencies and duplicated work across projects;
-- shared constraints, risks, and open loops;
+- declared dependencies across projects;
 - stale project context that requires review or maintenance.
+
+Duplicated work and shared cross-project patterns require semantic review and remain candidates for
+the review/materialization stage rather than being inferred by this deterministic writer.
 
 ### 6. Generate Cross-Project Knowledge And Insight
 
@@ -255,7 +261,7 @@ mixed.
 | Session | `sessions/*.md` | What happened, and how can this work resume? | updated per thread | implemented |
 | Project decision | `decisions/DR-*.md` | Which judgement must remain durable? | durable, status-managed | implemented |
 | Project current state | `working-context.md` | What is true in this project now? | stale content replaced | implemented |
-| Global current state | user-global `state/working-context.md` | What is the current state across registered projects? | aggregated from project dashboards | intended; bundled writer not implemented |
+| Global current state | user-global `state/working-context.md` | What is the current state across registered projects? | aggregated from project dashboards | implemented |
 | Global knowledge | user-global `data/decisions/` and related artifacts | What should be reused across projects? | reviewed promotion | candidate review implemented; final write external |
 | Insight / materialization | monthly reviews, Skill candidates, and related notes | What should be improved, automated, or systematized? | periodic review | monthly source review implemented; materialization requires follow-up |
 
@@ -307,7 +313,8 @@ user-global store.
 - Project registry and state live under `~/.tkn/codex-context/state/`.
 - Store configuration is `~/.tkn/codex-context/config/config.yaml`.
 - The store root keeps an updated `README.md` describing the current layout.
-- Global context writes are not exposed as bundled Skills.
+- Portfolio working-context writes require an explicit private destination.
+- Final user-global decision writes are not exposed as a bundled Skill.
 
 ### Working-context path references
 
@@ -372,6 +379,9 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `write-current-working-context`:
   - Creates or updates `~/.tkn/codex-context/state/<projectId>/working-context.md` as a lightweight
     dashboard of the project's current state.
+- `write-global-working-context`:
+  - Aggregates registered project working contexts into a source-linked portfolio dashboard at an
+    explicitly selected private destination.
 
 ### Active Work Records And Resume Flow
 

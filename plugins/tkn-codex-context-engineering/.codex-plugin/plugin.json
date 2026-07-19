@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.12.0",
-  "description": "Initialize Codex projects, read and refresh private project context, search and review Codex chats across projects, and manage sessions, decisions, memos, freshness, and distillation.",
+  "version": "0.13.0",
+  "description": "Initialize Codex projects, read and refresh private project context, aggregate registered project portfolios, search and review Codex chats, and manage sessions, decisions, memos, freshness, and distillation.",
   "author": {
     "name": "Tuckn"
   },
@@ -20,6 +20,7 @@
     "chat-review",
     "chat-history",
     "context-refresh",
+    "project-portfolio",
     "freshness",
     "distillation",
     "skills"
@@ -28,7 +29,7 @@
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Read and maintain private Codex project context",
-    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, read-only current-project orientation from private working dashboards, project-scoped refresh from Codex chat history, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
+    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, read-only current-project orientation from private working dashboards, project-scoped refresh from Codex chat history, registered-project portfolio aggregation, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -38,7 +39,7 @@
     "defaultPrompt": [
       "Read this project's current working context",
       "Refresh this project's session notes, decisions, and working context from Codex chat history",
-      "Resume an existing project session note"
+      "Write a private portfolio dashboard from all registered project working contexts"
     ],
     "brandColor": "#2563EB",
     "screenshots": []

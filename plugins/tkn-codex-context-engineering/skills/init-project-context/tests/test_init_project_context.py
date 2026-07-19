@@ -73,6 +73,11 @@ class InitProjectContextTests(unittest.TestCase):
         records = project.read_jsonl(store / "state" / "index.jsonl", project.Result())
         self.assertEqual(1, len(records))
         self.assertEqual((project_state / "memos").as_posix(), records[0]["memosPath"])
+        global_working_context = (store / "data" / "working-context.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("type: \"globalWorkingContext\"\nschemaVersion: 1\n", global_working_context)
+        self.assertIn("`write-global-working-context`", global_working_context)
 
         _, second_output = self.run_main(
             "--target", str(store), "--repo-root", str(repo), "--write"

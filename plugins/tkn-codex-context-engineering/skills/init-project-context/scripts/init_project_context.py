@@ -532,6 +532,7 @@ def global_working_context() -> str:
     created = now_iso()
     metadata = frontmatter([
         ("type", "globalWorkingContext"),
+        ("schemaVersion", 1),
         ("title", "Global Codex Working Context"),
         ("description", "User-global Codex context dashboard."),
         ("generator", "Codex"),
@@ -555,13 +556,15 @@ This file is the lightweight dashboard for user-global Codex context.
 - Global Codex context is stored in `~/.tkn/codex-context/data`.
 - Generated context is kept separate from Codex configuration in `~/.codex`.
 - Project working contexts are stored in `state/<projectId>/`; Codex project folders are tracked in `state/index.jsonl`.
+- `write-global-working-context` can aggregate registered project dashboards into an explicitly selected private destination.
 - Repositories should load selected global context read-only by default.
 - Repository snapshots require an explicit destination chosen from current project folder instructions.
 - Snapshot global context is historical reference, not an override for repository rules or current user instructions.
 
 ## Active Work
 
-- Establish explicit bridges for project initialization, context import, and promotion.
+- Keep project dashboards fresh before regenerating a registered-project portfolio.
+- Establish an explicit reviewed bridge for final user-global decision promotion.
 
 ## Important Constraints
 
