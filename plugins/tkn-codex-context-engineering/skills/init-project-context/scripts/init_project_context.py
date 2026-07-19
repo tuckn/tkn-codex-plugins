@@ -200,12 +200,22 @@ def repo_id_from_remote_or_record(remote: str, record: dict[str, object] | None)
 def render_minimal_working_context(*, title: str, project_id: str, updated: str) -> str:
     metadata = frontmatter([
         ("type", "workingContext"),
-        ("schemaVersion", 1),
+        ("schemaVersion", 2),
         ("title", title),
         ("description", f"Current truth for {title}."),
         ("projectId", project_id),
         ("generator", "Codex"),
         ("status", "active"),
+        ("projectStatus", "active"),
+        ("health", "unknown"),
+        ("priority", "normal"),
+        ("currentFocus", "Establish verified project current truth."),
+        ("blocked", False),
+        ("mainBlocker", ""),
+        ("exactNextAction", "Replace placeholder context with verified project current truth."),
+        ("lastMeaningfulActivity", updated),
+        ("reviewAfter", ""),
+        ("dependencyProjectIds", []),
         ("promotionStatus", "pending"),
         ("promotedTo", []),
         ("date", updated),
@@ -219,12 +229,20 @@ def render_minimal_working_context(*, title: str, project_id: str, updated: str)
 
 Describe the repository purpose.
 
+## Current Outcome
+
+- Project context storage and identity are initialized.
+
 ## Current Truth
 
 - Codex project identity is recorded in this file's Frontmatter as `projectId`.
 - Project context is stored in the private global project folder for this `projectId`.
 
-## Active Work
+## Active Workstreams
+
+- Replace this placeholder dashboard with verified project current truth.
+
+## Blockers And Risks
 
 None.
 
@@ -232,19 +250,39 @@ None.
 
 None.
 
-## Recent Decisions
+## Effective Decisions
 
 None.
 
-## Key Files
+## Dependencies
+
+None.
+
+## Key Files And Evidence
 
 - `state:/working-context.md`
 - `state:/sessions/`
 - `state:/decisions/`
 
-## Next Maintenance
+## Resumption
 
-- Update this dashboard when repository current truth changes.
+### Recommended Session
+
+None.
+
+### Exact Next Action
+
+- Replace placeholder context with verified project current truth.
+
+## Maintenance
+
+### Stale Items
+
+- Purpose and current truth remain placeholders until verified.
+
+### Review Due
+
+- Set `reviewAfter` after the initial context review.
 """
 
 def update_working_context_identity(

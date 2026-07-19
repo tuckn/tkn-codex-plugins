@@ -48,30 +48,31 @@ Project `sessions/` 全体を理解目的で読まない。読むのは指定 se
 2. 指定 session note を解決して読む。
 3. session note の Frontmatter を確認する。
    - `type: session` であること。
-   - `schemaVersion: 1` であること。未記載なら legacy v1 として読み、実際に更新する場合は `1` を追加する。`1` 以外なら書き換えを停止する。
+   - `schemaVersion` が未記載なら legacy v1、明記済みなら `1` または `2` であること。その他なら書き換えを停止する。
    - `sessionId` が filename 先頭と対応すること。
    - `status`、`distillationStatus`、`distilledTo` があること。
 4. この chat の canonical session note path を、指定 session note として扱う。
 5. 以後この chat では、新しい session note を作成しない。
 6. `write-session-note` が必要な更新は、必ず指定 session note に書く。
-7. 作業再開時点で、Frontmatter の `status` を `in-progress` にする。ただし user が閲覧のみを依頼している場合は変更しない。
-8. Skill が session note を更新したら、Frontmatter の `updated` を OS/system clock の timestamp に更新する。
-9. 再開した事実、現在の user intent、次の一手を既存 section に短く反映する。
-10. 重要な current truth が変わる場合だけ、project `working-context.md` も更新する。
+7. 閲覧だけでなく本文を更新する場合、v1 note は `write-session-note` の schema compatibility policy に従って全体を v2 へ migrate する。番号だけ `2` にしない。
+8. 作業再開時点で、Frontmatter の `status` を `in-progress` にする。ただし user が閲覧のみを依頼している場合は変更しない。
+9. Skill が session note を更新したら、Frontmatter の `updated` を OS/system clock の timestamp に更新する。
+10. 再開した事実、現在の user intent、次の一手を v2 の該当 section に短く反映する。
+11. 重要な current truth が変わる場合だけ、project `working-context.md` も更新する。
 
 ## What to update in the session note
 
 必要な section だけ更新する。
 
-- `User intent / interaction summary`: 新しい chat で resume 指定があったことと、追加依頼。
-- `Current state`: resume 後の現在状態。
-- `Working context`: 新たに確認した files や assumptions。
-- `Changed files`: resume 後に変更した files。
-- `Important decisions`: resume 後に増えた durable decisions。
-- `Open issues`: 未解決の blocker や questions。
-- `Next steps`: resume 後の concrete next actions。
-- `Exact next step`: 次の chat または compaction 後に最初に取る action。
-- `Validation`: resume 後に実施した checks。
+- `Objective`: 追加された goal または done criteria。
+- `Outcome`: resume 後に実際に得られた結果。
+- `Current State`: resume 後に成立している状態。
+- `User Confirmations`: 新しい approval、rejection、preference、constraint。
+- `Evidence`: resume 後に変更した files、validation、relevant sources。
+- `Decision Candidates`: resume 後に増えた durable decision candidates。
+- `Reusable Learnings`: 新たに確認した成功方法、failed approach、Skill / automation signal。
+- `Open Loops`: 未解決の blocker、question、risk。
+- `Handoff`: concrete next steps と exact next step。
 
 chronological log は増やしすぎない。resume の事実は、後続作業に必要な範囲で短く書く。
 

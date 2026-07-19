@@ -8,7 +8,12 @@ from .common import yaml_string
 
 
 FRONTMATTER_PATTERN = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n?", re.DOTALL)
-ARTIFACT_SCHEMA_VERSION = "1"
+ARTIFACT_SCHEMA_VERSION = "2"
+LEGACY_ARTIFACT_SCHEMA_VERSION = "1"
+SUPPORTED_ARTIFACT_SCHEMA_VERSIONS = {
+    LEGACY_ARTIFACT_SCHEMA_VERSION,
+    ARTIFACT_SCHEMA_VERSION,
+}
 
 
 def strip_frontmatter(text: str) -> str:
@@ -104,12 +109,13 @@ def require_supported_artifact_schema(
     metadata: dict[str, str],
     artifact_label: str,
 ) -> str:
-    """Treat unversioned artifacts as legacy v1 and reject unknown versions."""
-    version = metadata.get("schemaVersion") or ARTIFACT_SCHEMA_VERSION
-    if version != ARTIFACT_SCHEMA_VERSION:
+    """Treat unversioned artifacts as v1 and reject unknown versions."""
+    version = metadata.get("schemaVersion") or LEGACY_ARTIFACT_SCHEMA_VERSION
+    if version not in SUPPORTED_ARTIFACT_SCHEMA_VERSIONS:
+        supported = ", ".join(sorted(SUPPORTED_ARTIFACT_SCHEMA_VERSIONS))
         raise SystemExit(
             f"Unsupported {artifact_label} schemaVersion: {version}. "
-            f"Supported version: {ARTIFACT_SCHEMA_VERSION}."
+            f"Supported versions: {supported}."
         )
     return version
 
@@ -117,14 +123,14 @@ def ensure_artifact_schema_version(
     lines: list[str],
     artifact_label: str,
 ) -> list[str]:
-    """Add an explicit v1 marker when a supported legacy artifact is updated."""
+    """Make the existing schema explicit without relabeling the artifact body."""
     metadata = parse_simple_frontmatter("".join(lines))
-    require_supported_artifact_schema(metadata, artifact_label)
+    version = require_supported_artifact_schema(metadata, artifact_label)
     if frontmatter_key_block(lines, "schemaVersion"):
         return lines
     type_block = frontmatter_key_block(lines, "type")
     insert_at = type_block[1] if type_block else 1
-    return lines[:insert_at] + [f"schemaVersion: {ARTIFACT_SCHEMA_VERSION}\n"] + lines[insert_at:]
+    return lines[:insert_at] + [f"schemaVersion: {version}\n"] + lines[insert_at:]
 
 def normalized_context_ref(value: str) -> str:
     return value.strip().replace("\\", "/")

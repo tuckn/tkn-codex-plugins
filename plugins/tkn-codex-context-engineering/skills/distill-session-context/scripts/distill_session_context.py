@@ -43,23 +43,43 @@ from tkn_codex_context.frontmatter import (  # noqa: E402
 from tkn_codex_context.safety import has_secret_like_content  # noqa: E402
 
 
-DISTILL_REUSABLE_SECTIONS = [
-    "important decisions",
-    "what worked",
-    "failed approaches",
-    "constraints",
-]
-DISTILL_FOLLOW_UP_SECTIONS = [
-    "open issues",
-    "next steps",
-    "exact next step",
-]
-DISTILL_EVIDENCE_SECTIONS = [
-    "user intent / interaction summary",
-    "working context",
-    "changed files",
-    "validation",
-]
+DISTILL_SECTION_GROUPS = {
+    "1": {
+        "reusable": [
+            "important decisions",
+            "what worked",
+            "failed approaches",
+            "constraints",
+        ],
+        "follow_up": [
+            "open issues",
+            "next steps",
+            "exact next step",
+        ],
+        "evidence": [
+            "user intent / interaction summary",
+            "working context",
+            "changed files",
+            "validation",
+        ],
+    },
+    "2": {
+        "reusable": [
+            "decision candidates",
+            "reusable learnings",
+        ],
+        "follow_up": [
+            "open loops",
+            "handoff",
+        ],
+        "evidence": [
+            "outcome",
+            "current state",
+            "user confirmations",
+            "evidence",
+        ],
+    },
+}
 
 
 def normalize_heading(value: str) -> str:
@@ -67,14 +87,20 @@ def normalize_heading(value: str) -> str:
 
 def markdown_sections(text: str) -> dict[str, list[str]]:
     sections: dict[str, list[str]] = {}
-    current = ""
+    active: list[tuple[int, str]] = []
     for line in strip_frontmatter(text).splitlines():
         match = re.match(r"^(#{2,6})\s+(.+?)\s*$", line)
         if match:
+            level = len(match.group(1))
+            while active and active[-1][0] >= level:
+                active.pop()
+            for _, parent in active:
+                sections[parent].append(line.rstrip())
             current = normalize_heading(match.group(2))
             sections.setdefault(current, [])
+            active.append((level, current))
             continue
-        if current:
+        for _, current in active:
             sections[current].append(line.rstrip())
     return sections
 
@@ -107,6 +133,7 @@ def render_session_distillation(
     *,
     session_path: Path,
     metadata: dict[str, str],
+    schema_version: str,
     sections: dict[str, list[str]],
     args: argparse.Namespace,
 ) -> str:
@@ -131,6 +158,7 @@ def render_session_distillation(
         ("sourceRepo", repo),
         ("sourceSessionStatus", source_status),
         ("sourceDistillationStatus", source_distillation),
+        ("sourceSchemaVersion", int(schema_version)),
         ("date", updated),
         ("updated", updated),
         ("contextId", str(uuid.uuid4())),
@@ -147,6 +175,7 @@ def render_session_distillation(
 - Source updated: {source_updated or "unknown"}
 - Source status: {source_status or "unknown"}
 - Source distillation status: {source_distillation or "unknown"}
+- Source schema version: {schema_version}
 - Review required before promotion: yes
 
 ## Usage Guidance
@@ -156,11 +185,11 @@ def render_session_distillation(
 - Promote only the reusable parts to working context, decisions, global context, AGENTS.md, or a Skill.
 - Do not promote raw chronological detail unless it prevents a repeated failure.
 
-{render_distill_section_group("Reusable Learnings", DISTILL_REUSABLE_SECTIONS, sections, args.max_section_lines)}
+{render_distill_section_group("Reusable Learnings", DISTILL_SECTION_GROUPS[schema_version]["reusable"], sections, args.max_section_lines)}
 
-{render_distill_section_group("Follow-Up Candidates", DISTILL_FOLLOW_UP_SECTIONS, sections, args.max_section_lines)}
+{render_distill_section_group("Follow-Up Candidates", DISTILL_SECTION_GROUPS[schema_version]["follow_up"], sections, args.max_section_lines)}
 
-{render_distill_section_group("Evidence Snapshot", DISTILL_EVIDENCE_SECTIONS, sections, args.max_section_lines)}
+{render_distill_section_group("Evidence Snapshot", DISTILL_SECTION_GROUPS[schema_version]["evidence"], sections, args.max_section_lines)}
 
 ## Exclusions
 
@@ -182,7 +211,7 @@ def distill_session(args: argparse.Namespace) -> Result:
         raise SystemExit(f"Sensitive-looking content detected in {session_path}; refusing to distill.")
 
     metadata = parse_simple_frontmatter(text)
-    require_supported_artifact_schema(metadata, "session note")
+    schema_version = require_supported_artifact_schema(metadata, "session note")
     if metadata.get("type") and metadata.get("type") != "session":
         result.warn(f"source type is {metadata.get('type')}, expected session")
     sections = markdown_sections(text)
@@ -192,6 +221,7 @@ def distill_session(args: argparse.Namespace) -> Result:
     content = render_session_distillation(
         session_path=session_path,
         metadata=metadata,
+        schema_version=schema_version,
         sections=sections,
         args=args,
     )
@@ -253,7 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--title")
     parser.add_argument("--source-repo")
-    parser.add_argument("--max-section-lines", type=int, default=12)
+    parser.add_argument("--max-section-lines", type=int, default=40)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--log")

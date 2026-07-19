@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "fixtures"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 import init_project_context as project  # noqa: E402
@@ -56,7 +57,13 @@ class InitProjectContextTests(unittest.TestCase):
         working_context = (project_state / "working-context.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("schemaVersion: 1", working_context)
+        self.assertIn("schemaVersion: 2", working_context)
+        self.assertIn('projectStatus: "active"', working_context)
+        self.assertIn('health: "unknown"', working_context)
+        self.assertIn("blocked: false", working_context)
+        self.assertIn("dependencyProjectIds: []", working_context)
+        self.assertIn("## Active Workstreams", working_context)
+        self.assertIn("## Resumption", working_context)
         self.assertIn("`state:/working-context.md`", working_context)
         self.assertIn("`state:/sessions/`", working_context)
         self.assertIn("`state:/decisions/`", working_context)
@@ -83,13 +90,9 @@ class InitProjectContextTests(unittest.TestCase):
         project_id = project.yaml_value(marker.read_text(), "projectId")
         working_context_path = store / "state" / project_id / "working-context.md"
         working_context_path.write_text(
-            "---\n"
-            "type: workingContext\n"
-            "title: Legacy dashboard\n"
-            "updated: 2026-01-01T00:00:00+09:00\n"
-            "---\n\n"
-            "# Working Context\n\n"
-            "Preserve this body.\n",
+            (FIXTURES / "working-context-v1-unversioned.md").read_text(
+                encoding="utf-8"
+            ),
             encoding="utf-8",
         )
 
@@ -100,7 +103,7 @@ class InitProjectContextTests(unittest.TestCase):
         self.assertEqual(0, result)
         refreshed = working_context_path.read_text(encoding="utf-8")
         self.assertIn("type: workingContext\nschemaVersion: 1\n", refreshed)
-        self.assertIn("Preserve this body.", refreshed)
+        self.assertIn("Preserve existing current truth.", refreshed)
 
     def test_refresh_rejects_unknown_working_context_schema(self) -> None:
         store = self.root / "store"
@@ -111,12 +114,8 @@ class InitProjectContextTests(unittest.TestCase):
         marker = repo / ".tkn" / "codex-context.yaml"
         project_id = project.yaml_value(marker.read_text(), "projectId")
         working_context_path = store / "state" / project_id / "working-context.md"
-        original = (
-            "---\n"
-            "type: workingContext\n"
-            "schemaVersion: 99\n"
-            "---\n\n"
-            "# Future Working Context\n"
+        original = (FIXTURES / "working-context-v99.md").read_text(
+            encoding="utf-8"
         )
         working_context_path.write_text(original, encoding="utf-8")
 

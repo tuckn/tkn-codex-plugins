@@ -1,6 +1,6 @@
 ---
 name: write-session-note
-description: 登録済み current project の projectId-specific state sessions folder に簡潔な session note を作成または更新する。ユーザー意図が file changes、investigation、重要判断、multi-turn tasks、resumable work、handoff、compaction、または chat の記録依頼に一致し、`.tkn/codex-context.yaml` が private registry で現在 workspace に解決できる場合に使う。marker 生成だけでは使わない。
+description: 登録済み current project の projectId-specific state sessions folder に、evidence、decision candidates、reusable learnings、handoff を持つ蒸留可能な session note を作成または更新する。ユーザー意図が file changes、investigation、重要判断、multi-turn tasks、resumable work、handoff、compaction、または chat の記録依頼に一致し、`.tkn/codex-context.yaml` が private registry で現在 workspace に解決できる場合に使う。marker 生成だけでは使わない。
 ---
 
 # Write Session Note
@@ -60,7 +60,7 @@ chat/thread ごとに 1 file を作成または更新する。
 ```md
 ---
 type: session
-schemaVersion: 1
+schemaVersion: 2
 title: <session-title>
 description: <short-summary>
 generator: Codex
@@ -74,41 +74,59 @@ sessionId: YYYYMMDDTHHMMSS<system-timezone-offset>
 
 # Session Note
 
-## Goal
+## Objective
 
-## Done criteria
+### Goal
 
-## User intent / interaction summary
+### Done Criteria
 
-## Current state
+## Outcome
 
-## Working context
+## Current State
 
-## Changed files
+## User Confirmations
 
-## Important decisions
+### Approved
 
-## What worked
+### Rejected
 
-## Failed approaches
+### Preferences And Constraints
 
-## Open issues
+## Evidence
 
-## Next steps
+### Changed Files
 
-## Exact next step
+### Validation
 
-## Constraints
+### Relevant Sources
 
-## Validation
+## Decision Candidates
+
+## Reusable Learnings
+
+### What Worked
+
+### Failed Approaches
+
+### Skill And Automation Signals
+
+## Open Loops
+
+## Handoff
+
+### Next Steps
+
+### Exact Next Step
 ```
+
+v2 では上記 headings を省略しない。該当内容がない section は `なし。` と明示する。
 
 本文冒頭に `Session:`、`Task:`、`Status:`、`Last updated:` は置かない。これらの machine-readable metadata は Frontmatter に集約する。
 
 ### Frontmatter policy
 
 - `type`: 必ず `session`。
-- `schemaVersion`: 必ず `1`。この version は session note の Frontmatter と本文 section の構造契約を表す。
+- `schemaVersion`: 新規 session note は必ず `2`。この version は session note の Frontmatter と本文 section の構造契約を表す。
 - `title`: session note の表示用タイトル。filename slug の単純な重複ではなく、作業内容が scan できる短い title を書く。
 - `description`: session の概要。空欄は `""` とするが、後続の context distillation が判断できる短い説明をできるだけ書く。
 - `generator`: 必ず `Codex`。
@@ -123,11 +141,24 @@ sessionId: YYYYMMDDTHHMMSS<system-timezone-offset>
 
 ### Schema compatibility
 
-- 新規 session note には `schemaVersion: 1` を必ず書く。
+- 新規 session note には `schemaVersion: 2` を必ず書く。
 - `schemaVersion` がない既存 session note は legacy v1 として読める。
-- Legacy v1 の本文または Frontmatter を更新する場合は、内容を維持したまま `schemaVersion: 1` を追加する。
-- `schemaVersion` が `1` 以外の場合は、対応形式を推測して書き換えず、unsupported version として報告する。
+- v1 session note は read-only 利用または metadata-only finalization では v1 のまま扱う。version 未記載なら `schemaVersion: 1` を明示してよい。
+- v1 の本文を更新する場合は、v1 section の意味を v2 section へ移し、情報を失わずに全体を v2 へ migrate する。本文を変えず番号だけ `2` にしない。
+- `schemaVersion` が `1` または `2` 以外の場合は、対応形式を推測して書き換えず、unsupported version として報告する。
 - `schemaVersion` を上げるのは、field の意味、必須 field、本文 section、または downstream extraction contract に互換性のない変更を加える場合だけにする。
+
+v1 から v2 への migration mapping:
+
+- `Goal` + `Done criteria` → `Objective`
+- confirmed な `User intent / interaction summary` → `User Confirmations`。goal や follow-up は `Objective` / `Handoff`
+- `Current state` + durable assumptions → `Current State`
+- `Working context`、`Changed files`、`Validation` → `Evidence`
+- `Important decisions` → stable `DC-NN` を持つ `Decision Candidates`
+- `What worked`、`Failed approaches` → `Reusable Learnings`
+- durable constraints → `User Confirmations / Preferences And Constraints`
+- `Open issues` → `Open Loops`
+- `Next steps` + `Exact next step` → `Handoff`
 
 ### Codex chat provenance
 
@@ -150,20 +181,49 @@ sourceRefs:
 
 ## What to record
 
-- `Goal`: この chat の intended outcome。
-- `Done criteria`: 作業完了と判断するために満たすべき条件。
-- `User intent / interaction summary`: durable requests、preferences、approvals、rejections のみ。
-- `Current state`: 現在の作業状態。
-- `Working context`: 関連する docs、files、searches、assumptions。paths と短い summary の利用。
-- `Changed files`: created、edited、moved、proposed files。
-- `Important decisions`: project `decisions/` の candidates を含む decisions。project、product、solution、design、workflow、operation、documentation、repository decisions を含む。
-- `What worked`: 再利用すべき successful approaches、commands、patterns、prompts、checks。
-- `Failed approaches`: 重要な negative knowledge。
-- `Open issues`: 未解決の questions、blockers、risks。
-- `Next steps`: decision records 作成や docs 更新を含む concrete next actions。
-- `Exact next step`: future chat が broad planning の前に取るべき最初の concrete action。
-- `Constraints`: repository rules、user instructions、safety constraints、validation limits。
-- `Validation`: 簡潔な test/check status。
+- `Objective`: この chat の goal と done criteria。意図と完了条件を結果から分離する。
+- `Outcome`: この session で実際に得られた結果。予定や作業ログを書かない。
+- `Current State`: session 終了時点で成立している事実、残っている状態、重要な assumptions。
+- `User Confirmations`: durable な approved、rejected、preferences、constraints。assistant proposal を approval として扱わない。
+- `Evidence`: changed files、validation、判断に使った relevant sources。full logs ではなく path と短い結果を書く。
+- `Decision Candidates`: chat 後も残す可能性がある判断。候補ごとに stable ID と固定 field を使う。
+- `Reusable Learnings`: 成功した方法、negative knowledge、Skill / automation signals。
+- `Open Loops`: 未解決の questions、blockers、risks、未完了 follow-up。
+- `Handoff`: concrete next steps と、future chat が最初に取る exact next step。
+
+### Decision candidate format
+
+Decision candidate は次の形式を使う。該当がなければ `なし。` と書く。
+
+```md
+### DC-01: <candidate-title>
+
+- Status: accepted | proposed | rejected | unclear
+- Scope: project | user | global | mixed
+- Decision:
+- Rationale:
+- Evidence:
+- Promotion Target: decision | working-context | global-decision | skill | automation | none
+```
+
+- `DC-NN` は note 内の two-digit sequence。
+- `accepted` は user approval または成立済み実装の evidence がある場合だけ使う。
+- 1 candidate に central decision を1つだけ書く。
+- Promotion target は最も直接的な destination を1つ選ぶ。複数 destination が必要なら `Handoff` に follow-up を書く。
+
+### Skill and automation signal format
+
+Skill または automation candidate は次の形式を使う。該当がなければ `なし。` と書く。
+
+```md
+#### SA-01: <signal-title>
+
+- Kind: skill | automation
+- Signal:
+- Evidence:
+- Reuse Scope: project | user | global | mixed
+- Suggested Follow-up:
+```
 
 ## Failed approaches policy
 

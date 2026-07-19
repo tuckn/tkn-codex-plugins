@@ -9,6 +9,10 @@ Use this skill to inspect whether Codex context is still fresh enough to reuse.
 
 Default to read-only audit. Do not update context files, global context, AGENTS.md, or Skills unless the user explicitly asks for the follow-up changes after seeing the audit.
 
+For project session, decision, and working-context artifacts, schema v2 is current. Report v1 or
+missing versions as legacy and any other version as unsupported; do not migrate source files during
+an audit.
+
 ## Activation Gate
 
 This skill runs only when the user asks for a freshness, stale-context, pending-review, or reuse-risk audit.

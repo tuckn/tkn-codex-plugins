@@ -23,11 +23,16 @@ The marker file alone does not trigger distillation or finalization. If project 
    - Prefer a user-specified `~/.tkn/codex-context/state/<projectId>/sessions/*.md` file.
    - If none is specified, inspect project `working-context.md` or ask for the intended session note when multiple candidates are plausible.
 2. Optionally run `audit-context-freshness` first when the session is old or `distillationStatus` is pending/partial.
-3. Treat a missing `schemaVersion` as legacy v1. Refuse an unsupported version; when finalization updates legacy v1 metadata, add `schemaVersion: 1`.
+3. Treat a missing `schemaVersion` as legacy v1. Support v1 and v2, and refuse any other version. Metadata-only finalization keeps the source body schema unchanged and adds `schemaVersion: 1` only when a legacy source omitted it.
 4. Run a dry-run distillation to confirm the output path and extracted sections.
 5. Use `--write` only when a durable candidate file is useful.
 6. Review the generated candidate before promoting anything.
 7. After accepted content exists somewhere durable, finalize the source session metadata.
+
+For v2, deterministic extraction follows the stable parent sections `Decision Candidates`,
+`Reusable Learnings`, `Open Loops`, `Handoff`, `Outcome`, `Current State`, `User Confirmations`,
+and `Evidence`, including their nested candidate IDs and fields. The default extraction bound is
+40 non-empty lines per selected section. Semantic generalization still requires Codex review.
 
 ## Commands
 

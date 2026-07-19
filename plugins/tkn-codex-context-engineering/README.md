@@ -280,11 +280,20 @@ extraction and comparison.
 
 ### Artifact Schema Versioning
 
-Project session notes, decision records, and working contexts use `schemaVersion: 1`.
-An existing artifact without `schemaVersion` is treated as legacy v1 and receives the explicit
-version when it is next updated. A reader or writer must not guess the structure of an unsupported
-version. Increment the version only for an incompatible change to field meaning, required metadata,
-body sections, or a downstream extraction contract.
+New project session notes, decision records, and working contexts use `schemaVersion: 2`.
+Session v2 is a distillable evidence package, decision v2 is a reusable unit of judgement, and
+working-context v2 is a project control plane with portfolio metadata. An artifact without
+`schemaVersion` is treated as legacy v1. Readers support v1 and v2, but writers must not relabel a
+v1 body as v2 without migrating its meaning into the v2 structure. Other versions are unsupported.
+
+| Artifact | v2 role | Stable extraction signals |
+|---|---|---|
+| Session note | Distillable evidence package | confirmations, evidence, `DC-NN`, reusable learnings, open loops, handoff |
+| Decision record | Reusable unit of judgement | rationale, applicability, `implementationStatus`, verification, materialization, supersession |
+| Working context | Project control plane | lifecycle, health, priority, focus, blocker, next action, activity/review dates, dependencies |
+
+The canonical field, section, enum, and v1-to-v2 migration contracts live in the corresponding
+writer Skills.
 
 ## Local And Global Context
 
@@ -302,8 +311,8 @@ user-global store.
 
 ### Working-context path references
 
-In a project `working-context.md`, file and directory references under `Recent Decisions` and
-`Key Files` use logical roots:
+In a schema v2 project `working-context.md`, file and directory references under
+`Effective Decisions` and `Key Files And Evidence` use logical roots:
 
 - `project:/<path>` resolves from the registered Codex Project folder.
 - `state:/<path>` resolves from `~/.tkn/codex-context/state/<projectId>/`.

@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+FIXTURES = Path(__file__).resolve().parents[3] / "tests" / "fixtures"
 sys.path.insert(0, str(SCRIPT_ROOT))
 
 import distill_session_context as distill  # noqa: E402
@@ -20,16 +21,7 @@ class DistillSessionContextTests(unittest.TestCase):
             root = Path(temp)
             session = root / "session.md"
             session.write_text(
-                "---\n"
-                "type: session\n"
-                "title: Example Session\n"
-                "date: 2026-01-01T00:00:00+09:00\n"
-                "updated: 2026-01-01T00:00:00+09:00\n"
-                "distillationStatus: pending\n"
-                "distilledTo: []\n"
-                "---\n\n"
-                "# Example Session\n\n"
-                "## Important decisions\n\n- Keep the new layout.\n",
+                (FIXTURES / "session-v1-unversioned.md").read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
             candidates = root / "candidates"
@@ -40,7 +32,10 @@ class DistillSessionContextTests(unittest.TestCase):
                 )
             self.assertEqual(0, result)
             candidate = next(candidates.glob("*.md"))
-            self.assertIn("Keep the new layout", candidate.read_text(encoding="utf-8"))
+            self.assertIn(
+                "Add a schema version before changing section meanings.",
+                candidate.read_text(encoding="utf-8"),
+            )
 
             ref = f"candidates/{candidate.name}"
             with redirect_stdout(io.StringIO()):
@@ -68,11 +63,51 @@ class DistillSessionContextTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "requires --dest"):
                 distill.main(["--session", str(session), "--dry-run"])
 
+    def test_distills_v2_structured_sections_and_preserves_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            session = root / "session-v2.md"
+            session.write_text(
+                (FIXTURES / "session-v2.md").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            candidates = root / "candidates"
+
+            with redirect_stdout(io.StringIO()):
+                result = distill.main(
+                    ["--session", str(session), "--dest", str(candidates), "--write"]
+                )
+
+            self.assertEqual(0, result)
+            candidate_text = next(candidates.glob("*.md")).read_text(encoding="utf-8")
+            self.assertIn("sourceSchemaVersion: 2", candidate_text)
+            self.assertIn("DC-01: Keep writer Skills canonical", candidate_text)
+            self.assertIn("SA-01: Validate artifact fixtures", candidate_text)
+            self.assertIn("Execute the plugin-level fixture test suite.", candidate_text)
+            self.assertIn("Unit tests passed.", candidate_text)
+
+            with redirect_stdout(io.StringIO()):
+                result = distill.finalize_main(
+                    [
+                        "--session",
+                        str(session),
+                        "--status",
+                        "no-action",
+                        "--write",
+                    ]
+                )
+
+            self.assertEqual(0, result)
+            self.assertIn(
+                "schemaVersion: 2",
+                session.read_text(encoding="utf-8"),
+            )
+
     def test_rejects_unknown_session_schema(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             session = root / "session.md"
-            original = "---\ntype: session\nschemaVersion: 99\n---\n"
+            original = (FIXTURES / "session-v99.md").read_text(encoding="utf-8")
             session.write_text(original, encoding="utf-8")
 
             with self.assertRaisesRegex(SystemExit, "Unsupported session note schemaVersion: 99"):

@@ -40,12 +40,13 @@ decision record の Frontmatter を一次 index として扱う。
 - `description`
 - `status`
 - `scope`
+- `implementationStatus`（v2）
 - `promotionStatus`
 - `promotedTo`
 - `updated`
 - `decisionId`
 
-`schemaVersion` がない decision record は legacy v1 として review できる。実際にその record を更新する場合は `schemaVersion: 1` を追加する。`1` 以外の record は対応形式を推測して編集または promote せず、unsupported version として review result に分離する。
+`schemaVersion` がない decision record は legacy v1 として review できる。v1 と v2 を読み、その他は unsupported version として review result に分離する。v1 を metadata-only で更新する場合は v1 のまま明示できるが、本文を更新する場合は `record-decision` の policy に従い、Rationale、Applicability、Verification、Materialization、Supersession を分類して v2 へ migrate する。
 
 本文を読む前に、filenames と Frontmatter で対象をできるだけ絞る。
 
@@ -61,6 +62,7 @@ decision record の Frontmatter を一次 index として扱う。
 3. decision Frontmatter index の作成。
    - `status`
    - `scope`
+   - `implementationStatus`
    - `promotionStatus`
    - `promotedTo`
    - `updated`
@@ -73,6 +75,7 @@ decision record の Frontmatter を一次 index として扱う。
    - `promotionStatus: pending` / `promotionStatus: partial`
 5. selected decision records のみの読み込み。
 6. decision ごとの分類。
+   - accepted だが未実装、実装途中、実装済み、verified
    - durable docs にすでに反映済み
    - `AGENTS.md` の更新対象
    - `README.md` の更新対象

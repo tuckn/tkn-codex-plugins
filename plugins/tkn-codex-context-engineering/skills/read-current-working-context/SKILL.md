@@ -1,6 +1,6 @@
 ---
 name: read-current-working-context
-description: 登録済み current project の projectId-specific working-context.md を読み、新しい chat で project purpose、current truth、active work、constraints、recent decisions、key files、next maintenance を把握する。ユーザーが current project の状況確認、orientation、context 利用、resume または handoff 前の把握を依頼し、`.tkn/codex-context.yaml` が private registry で現在 workspace に解決できる場合に使う。read-only とし、marker 生成だけでは使わない。
+description: 登録済み current project の projectId-specific working-context.md を読み、新しい chat で project lifecycle、health、priority、focus、current truth、active workstreams、blockers、effective decisions、dependencies、resumption point を把握する。ユーザーが current project の状況確認、orientation、context 利用、resume または handoff 前の把握を依頼し、`.tkn/codex-context.yaml` が private registry で現在 workspace に解決できる場合に使う。read-only とし、marker 生成だけでは使わない。
 ---
 
 # Read Current Working Context
@@ -43,8 +43,8 @@ working context の作成または更新依頼には `write-current-working-cont
 ## Read Workflow
 
 1. 解決した `working-context.md` を Frontmatter から本文末尾まで全体で読む。
-2. Frontmatter の `type`、`schemaVersion`、`status`、`updated` を確認する。`schemaVersion` がない場合は legacy v1 として読む。`1` 以外の場合は対応形式を推測せず、unsupported version として報告する。`projectId` がある場合は marker と一致することも確認する。
-3. purpose、current truth、active work、important constraints、recent decisions、key files、next maintenance を抽出する。
+2. Frontmatter の `type`、`schemaVersion`、`status`、`updated` を確認する。`schemaVersion` がない場合は legacy v1 として読む。v1 と v2 を読み、その他は対応形式を推測せず unsupported version として報告する。`projectId` がある場合は marker と一致することも確認する。
+3. v2 では portfolio metadata、purpose、current outcome、current truth、active workstreams、blockers、effective decisions、dependencies、resumption、maintenance を抽出する。v1 では従来の purpose、current truth、active work、constraints、recent decisions、key files、next maintenance を対応する概念として読む。
 4. 現在の依頼の理解に必要な link だけを選び、関連する session note、decision record、plan、spec を選択的に読む。
 5. `project:/<path>` は registry で検証済みの `currentRoot`、`state:/<path>` は検証済み `workingContextPath` の親 folder を基準に解決する。
 6. logical reference は `/` separator を使い、`..` で logical root の外へ出る path は解決しない。
@@ -70,11 +70,12 @@ Project state folder 全体、`sessions/` 全体、`decisions/` 全体、Codex J
 保存済み記述をそのまま長く転載せず、次を簡潔に返す。
 
 - project purpose と current truth
-- active work と現在の到達点
+- project status、health、priority、current focus
+- active workstreams、blockers、現在の到達点
 - important constraints
-- recent decisions
+- effective decisions と dependencies
 - key files と必要な関連 note
-- next maintenance または resumption point
+- exact next action、next maintenance または resumption point
 - freshness warning と、現在の証拠を優先した箇所
 
 不足している section は推測で埋めず、保存済み context に記載がないと示す。

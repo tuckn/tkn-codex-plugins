@@ -30,7 +30,11 @@ from tkn_codex_context.common import (  # noqa: E402
     source_ref,
 )
 from tkn_codex_context.file_io import require_explicit_output_dest, write_text  # noqa: E402
-from tkn_codex_context.frontmatter import parse_simple_frontmatter  # noqa: E402
+from tkn_codex_context.frontmatter import (  # noqa: E402
+    ARTIFACT_SCHEMA_VERSION,
+    LEGACY_ARTIFACT_SCHEMA_VERSION,
+    parse_simple_frontmatter,
+)
 from tkn_codex_context.safety import has_secret_like_content  # noqa: E402
 
 
@@ -161,6 +165,13 @@ def assess_freshness_file(
     if updated_value and updated_at is None:
         flags.append("unparseable-updated")
 
+    if category in {"working-context", "decisions", "sessions"}:
+        schema_version = metadata.get("schemaVersion") or LEGACY_ARTIFACT_SCHEMA_VERSION
+        if schema_version == LEGACY_ARTIFACT_SCHEMA_VERSION:
+            flags.append(f"legacy-schema={schema_version}")
+        elif schema_version != ARTIFACT_SCHEMA_VERSION:
+            flags.append(f"unsupported-schema={schema_version}")
+
     threshold = freshness_threshold(category, args)
     if age_days is not None and age_days > threshold:
         flags.append(f"stale>{threshold}d")
@@ -185,7 +196,10 @@ def assess_freshness_file(
     severity = "ok"
     if "secret-like-content" in flags:
         severity = "high"
-    elif any(flag.startswith(("stale>", "missing-", "unparseable-")) for flag in flags):
+    elif any(
+        flag.startswith(("stale>", "missing-", "unparseable-", "unsupported-schema="))
+        for flag in flags
+    ):
         severity = "medium"
     elif flags:
         severity = "low"
