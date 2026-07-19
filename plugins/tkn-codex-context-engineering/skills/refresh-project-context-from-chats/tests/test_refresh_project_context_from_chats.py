@@ -27,11 +27,11 @@ def write_session(
     path: Path,
     *,
     thread_id: str,
-    cwd: Path,
+    cwd: str | Path,
     user_text: str,
     assistant_text: str = "done",
     repository_url: str = REPOSITORY_URL,
-    second_cwd: Path | None = None,
+    second_cwd: str | Path | None = None,
     thread_source: str = "user",
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -298,6 +298,191 @@ class RefreshProjectContextTests(unittest.TestCase):
         self.state_file.write_text("not json", encoding="utf-8")
         with self.assertRaises(RefreshError):
             self.scan()
+
+    def test_multi_source_state_keeps_same_thread_id_separate(self) -> None:
+        windows_sessions = self.root / "windows-sessions"
+        wsl_sessions = self.root / "wsl-sessions"
+        windows_path = windows_sessions / "2026" / "07" / "01" / "thread.jsonl"
+        wsl_path = wsl_sessions / "2025" / "09" / "01" / "thread.jsonl"
+        write_session(
+            windows_path,
+            thread_id="shared-thread-id",
+            cwd=self.repo,
+            user_text="windows request",
+        )
+        repo_text = self.repo.as_posix()
+        self.assertRegex(repo_text, r"^[A-Za-z]:/")
+        wsl_cwd = Path(
+            f"/mnt/{repo_text[0].lower()}/{repo_text[3:]}"
+        )
+        write_session(
+            wsl_path,
+            thread_id="shared-thread-id",
+            cwd=wsl_cwd,
+            user_text="wsl request",
+        )
+
+        for source_id, sessions_root in (
+            ("windows", windows_sessions),
+            ("wsl", wsl_sessions),
+        ):
+            scan = scan_project(
+                self.repo,
+                sessions_root,
+                source_id=source_id,
+                registry_path=self.registry,
+                state_file=self.state_file,
+                repository_url=REPOSITORY_URL,
+            )
+            self.assertEqual(1, scan["counts"]["new"])
+            item = scan["sessions"][0]
+            self.assertEqual(source_id, item["sourceId"])
+            self.assertTrue(item["sourceRef"].startswith(f"{source_id}/"))
+            commit_refresh(
+                scan,
+                {
+                    "processed": [
+                        {
+                            "threadId": item["threadId"],
+                            "fingerprint": item["fingerprint"],
+                            "sessionNote": f"sessions/{source_id}.md",
+                            "decisionIds": [],
+                        }
+                    ]
+                },
+                state_file=self.state_file,
+            )
+
+        state = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertEqual(2, state["schemaVersion"])
+        self.assertEqual(
+            {"windows", "wsl"},
+            set(state["sources"]),
+        )
+        self.assertIn("shared-thread-id", state["sources"]["windows"]["threads"])
+        self.assertIn("shared-thread-id", state["sources"]["wsl"]["threads"])
+        self.assertEqual(
+            ["wsl/2025/09/01/thread.jsonl"],
+            state["sources"]["wsl"]["threads"]["shared-thread-id"]["sourceRefs"],
+        )
+
+    def test_legacy_state_is_migrated_when_a_source_is_committed(self) -> None:
+        paths = self.create_fixture_sessions()
+        self.state_file.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "projectId": self.project_id,
+                    "sourceRoot": str(self.sessions),
+                    "approvedHistoricalRoots": [],
+                    "rejectedHistoricalRoots": [],
+                    "lastRefreshAt": None,
+                    "threads": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        scan = self.scan()
+        current = next(
+            item for item in scan["sessions"] if item["threadId"] == "thread-current"
+        )
+        commit_refresh(
+            scan,
+            {
+                "processed": [
+                    {
+                        "threadId": current["threadId"],
+                        "fingerprint": current["fingerprint"],
+                        "sessionNote": "sessions/thread-current.md",
+                        "decisionIds": [],
+                    }
+                ]
+            },
+            state_file=self.state_file,
+        )
+
+        state = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertEqual(2, state["schemaVersion"])
+        self.assertNotIn("threads", state)
+        self.assertIn("thread-current", state["sources"]["windows"]["threads"])
+        self.assertTrue(paths["current"].is_file())
+
+    def test_legacy_state_keeps_its_source_when_wsl_is_scanned_first(self) -> None:
+        windows_root = Path.home() / ".codex" / "sessions"
+        self.state_file.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 1,
+                    "projectId": self.project_id,
+                    "sourceRoot": str(windows_root),
+                    "approvedHistoricalRoots": [],
+                    "rejectedHistoricalRoots": [],
+                    "lastRefreshAt": "2026-06-01T00:00:00Z",
+                    "threads": {
+                        "thread-windows": {
+                            "fingerprint": "legacy-fingerprint",
+                            "sourceRefs": ["2026/06/windows.jsonl"],
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        wsl_sessions = self.root / "wsl-sessions"
+        write_session(
+            wsl_sessions / "2025" / "09" / "01" / "wsl.jsonl",
+            thread_id="thread-wsl",
+            cwd=self.repo,
+            user_text="wsl request",
+        )
+        scan = scan_project(
+            self.repo,
+            wsl_sessions,
+            source_id="wsl",
+            registry_path=self.registry,
+            state_file=self.state_file,
+        )
+        current = scan["sessions"][0]
+        commit_refresh(
+            scan,
+            {
+                "processed": [
+                    {
+                        "threadId": current["threadId"],
+                        "fingerprint": current["fingerprint"],
+                        "sessionNote": "sessions/thread-wsl.md",
+                        "decisionIds": [],
+                    }
+                ]
+            },
+            state_file=self.state_file,
+        )
+
+        state = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertIn("thread-windows", state["sources"]["windows"]["threads"])
+        self.assertIn("thread-wsl", state["sources"]["wsl"]["threads"])
+
+    def test_wsl_historical_root_approval_is_not_rewritten_as_windows_local_path(
+        self,
+    ) -> None:
+        wsl_root = "/mnt/c/path/to/legacy-project"
+        write_session(
+            self.sessions / "2025" / "09" / "01" / "wsl.jsonl",
+            thread_id="thread-wsl",
+            cwd=wsl_root,
+            user_text="legacy wsl request",
+        )
+
+        candidate_scan = self.scan()
+        self.assertEqual(wsl_root, candidate_scan["historicalRootCandidates"][0]["root"])
+
+        approved_scan = self.scan(approve_roots=[wsl_root])
+        self.assertEqual(1, approved_scan["counts"]["total"])
+        self.assertEqual(wsl_root, approved_scan["approvedHistoricalRoots"][0])
+        commit_refresh(approved_scan, {"processed": []}, state_file=self.state_file)
+
+        state = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertEqual([wsl_root], state["approvedHistoricalRoots"])
 
     def test_search_cli_keeps_compact_json_message_shape(self) -> None:
         self.create_fixture_sessions()

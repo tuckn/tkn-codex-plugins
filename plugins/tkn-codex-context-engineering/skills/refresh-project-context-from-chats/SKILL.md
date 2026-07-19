@@ -29,11 +29,15 @@ Codex chat 履歴を source evidence として、登録済み project の privat
 
 ## Source and state
 
-- Source root は `$CODEX_HOME/sessions`。`CODEX_HOME` 未設定時は `~/.codex/sessions`。
+- Default source root は `$CODEX_HOME/sessions`。`CODEX_HOME` 未設定時は `~/.codex/sessions`。
+- Default source ID は `windows`。明示された WSL または archive を処理する場合は、stable な
+  `--source-id` と `--sessions-root` を必ず組み合わせる。
 - Source root は project-local の `./codex/sessions` ではない。
 - Source JSONL は read-only とし、編集、移動、削除しない。
 - 差分 state は `~/.tkn/codex-context/state/<projectId>/chat-refresh-state.json`。
-- State の `lastRefreshAt` と thread ごとの fingerprint を前回成功時点として使う。State が存在しない場合は初回実行として扱う。
+- State schema v2 の `sources.<sourceId>` ごとに `sourceRoot`、`lastRefreshAt`、thread fingerprint
+  を保持する。State が存在しない場合は初回実行として扱い、schema v1 state は最初の正常な
+  commit 時に v2 へ移行する。
 - Scan output と result JSON は OS temp に置く。repository `.local/` を作らない。
 
 Codex JSONL は通常 `projectId` を持たない。Current root、registry が解決した path aliases、ユーザーが承認済みの historical roots に一致する `session_meta.cwd` または `turn_context.cwd` を使い、current project に属する messages だけを選ぶ。同じ Git repository URL の別 root は自動採用せず候補にする。
@@ -58,6 +62,16 @@ Typical scan:
 python -B <skill-root>/scripts/refresh_project_context_from_chats.py scan `
   --repo-root . `
   --output "$env:TEMP\refresh-project-context-from-chats\scan.json"
+```
+
+明示された archive の scan:
+
+```powershell
+python -B <skill-root>/scripts/refresh_project_context_from_chats.py scan `
+  --repo-root . `
+  --source-id wsl `
+  --sessions-root "<wsl-sessions-root>" `
+  --output "$env:TEMP\refresh-project-context-from-chats\wsl-scan.json"
 ```
 
 初回は対象全履歴が `new` になる。通常の再実行では `new` と `changed` だけを処理する。全件再評価を明示された場合だけ `--full` を使う。
@@ -95,10 +109,11 @@ sourceType: codexChat
 sourceThreadIds:
   - <thread-id>
 sourceRefs:
-  - YYYY/MM/DD/rollout-....jsonl
+  - windows/YYYY/MM/DD/rollout-....jsonl
 ```
 
-- `sourceRefs` は sessions root 相対 path のみ。
+- `sourceRefs` は `<sourceId>/<sessions-root-relative-path>` とし、archive をまたいでも provenance
+  が衝突しないようにする。
 - `date` と filename timestamp は source chat 開始時刻。
 - `updated` は refresh 実行時刻。
 - 軽微な chat も最小 note を作成し、反映先がなければ `distillationStatus: no-action`。

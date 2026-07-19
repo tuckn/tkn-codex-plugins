@@ -75,6 +75,11 @@ current project の Codex JSONL chats
 初回後は新規または変更された source fingerprint だけを処理します。Registry 内の全 project を
 一括処理しません。
 
+Windows、WSL、archive の sessions から登録済み全 project を作り直す前には、
+`plan-context-rebuild-from-chats` を使います。既存 artifact を棚卸しし、read-only の割当 plan を
+作ります。Git repository URL だけで示された historical root は自動採用せず、明示承認まで候補に
+留めます。
+
 #### Project 横断 review と materialization
 
 登録済み project 全体の状況を理解し、再利用可能な知識を見つけるときに使います。
@@ -396,13 +401,18 @@ plugins/tkn-codex-context-engineering/lib/tkn_codex_context/
 
 ### このPCにある全projectのchat履歴の検索・review・要約
 
+- `plan-context-rebuild-from-chats`:
+  - Registry の全 project と名前付きの複数 Codex sessions source を照合し、既存 artifact の
+    schemaVersion、直接割当、root 承認候補、未解決 session、parser gap、重複 thread ID を含む
+    read-only の再構築 plan を作成します。
 - `search-all-codex-chats`:
   - このPC上の全projectにまたがる Codex JSONL chat履歴を検索し、過去の会話、判断、
     outcome に関する問い合わせへ、見つかった根拠を使って回答します。
 - `refresh-project-context-from-chats`:
   - 登録済み current project に属する Codex chat履歴をscanし、threadごとのsession note、
     durable decision、working-context dashboardを順番に最新化します。初回は全対象chat、
-    2回目以降は新規またはsource fingerprintが変わったchatだけを処理します。
+    2回目以降は新規またはsource fingerprintが変わったchatだけを処理します。Windows、WSL、
+    archive は名前付き source ごとに state と source-qualified reference を分離します。
 - `review-all-codex-chats`:
   - `~/.codex/sessions` にある、このPC上の全projectのCodex chat履歴を review し、
     `~/.tkn/codex-context/data/session-reviews` に月間 source review note を作成します。

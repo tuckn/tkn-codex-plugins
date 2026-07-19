@@ -61,6 +61,11 @@ def normalize_message_text(value: str) -> str:
 
 def normalize_path_text(value: str) -> str:
     normalized = value.replace("/", "\\").rstrip("\\")
+    wsl_mount = re.match(r"^\\mnt\\([A-Za-z])(?:\\(.*))?$", normalized)
+    if wsl_mount:
+        drive = wsl_mount.group(1)
+        remainder = wsl_mount.group(2) or ""
+        normalized = f"{drive}:\\{remainder}".rstrip("\\")
     return normalized.casefold()
 
 
@@ -160,6 +165,18 @@ def read_session(path: Path) -> SessionLog | None:
         payload = obj.get("payload") or {}
         timestamp = str(obj.get("timestamp") or "")
 
+        if (
+            meta is None
+            and not event_type
+            and obj.get("id")
+            and obj.get("timestamp")
+            and "instructions" in obj
+        ):
+            # Legacy Codex JSONL placed session metadata directly in the first object.
+            meta = obj
+            turn_cwd = str(obj.get("cwd") or "")
+            continue
+
         if event_type == "session_meta" and isinstance(payload, dict):
             meta = payload
             turn_cwd = str(payload.get("cwd") or "")
@@ -174,6 +191,17 @@ def read_session(path: Path) -> SessionLog | None:
             role = payload.get("role")
             if role in {"user", "assistant"}:
                 append_message(role, "response_item", content_to_text(payload.get("content")), timestamp)
+            continue
+
+        if event_type == "message":
+            role = obj.get("role")
+            if role in {"user", "assistant"}:
+                append_message(
+                    role,
+                    "legacy_message",
+                    content_to_text(obj.get("content")),
+                    timestamp or str((meta or {}).get("timestamp") or ""),
+                )
             continue
 
         if event_type == "event_msg" and isinstance(payload, dict):

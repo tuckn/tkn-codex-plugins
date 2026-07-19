@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.13.0",
-  "description": "Initialize Codex projects, read and refresh private project context, aggregate registered project portfolios, search and review Codex chats, and manage sessions, decisions, memos, freshness, and distillation.",
+  "version": "0.14.0",
+  "description": "Initialize Codex projects, plan multi-source context rebuilds, read and refresh private project context, aggregate registered project portfolios, search and review Codex chats, and manage sessions, decisions, memos, freshness, and distillation.",
   "author": {
     "name": "Tuckn"
   },
@@ -20,6 +20,8 @@
     "chat-review",
     "chat-history",
     "context-refresh",
+    "context-rebuild",
+    "multi-source",
     "project-portfolio",
     "freshness",
     "distillation",
@@ -29,7 +31,7 @@
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Read and maintain private Codex project context",
-    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, read-only current-project orientation from private working dashboards, project-scoped refresh from Codex chat history, registered-project portfolio aggregation, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
+    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, read-only multi-source rebuild planning, current-project orientation from private working dashboards, project-scoped refresh from named Codex chat archives, registered-project portfolio aggregation, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [

@@ -76,6 +76,11 @@ This loop is limited to the current registered project. It uses chat logs as rea
 processes only new or changed source fingerprints after the first run, and does not sweep every
 project in the registry.
 
+Before rebuilding every registered project from Windows, WSL, or archived sessions, use
+`plan-context-rebuild-from-chats`. It inventories existing artifacts and produces a read-only
+assignment plan. Historical roots suggested only by repository URL remain review candidates until
+explicitly approved.
+
 #### Cross-Project Review And Materialization
 
 Use this loop to understand work across registered projects and identify reusable knowledge.
@@ -403,6 +408,10 @@ Included Skills are grouped by the role they play in the context lifecycle.
 
 ### All-Project Chat History Search, Review, And Distillation
 
+- `plan-context-rebuild-from-chats`:
+  - Compares all registry projects with multiple named Codex sessions sources, inventories existing
+    artifact schema versions, and writes a read-only rebuild plan containing direct assignments,
+    root-approval candidates, unresolved sessions, parser gaps, and duplicate thread IDs.
 - `search-all-codex-chats`:
   - Searches Codex JSONL chat history across all projects on the current computer and uses matched
     evidence to answer questions about past discussions, decisions, and outcomes.
@@ -410,6 +419,7 @@ Included Skills are grouped by the role they play in the context lifecycle.
   - Scans Codex chat history for the registered current project, reconciles one session note per
     thread, materializes durable decisions, and updates the working-context dashboard. The first
     run reviews all matched chats; later runs process only new or changed source fingerprints.
+    Named Windows, WSL, or archive sources keep separate state and source-qualified references.
 - `review-all-codex-chats`:
   - Reviews Codex chat history across all projects on the current computer from `~/.codex/sessions`
     into monthly source review notes under `~/.tkn/codex-context/data/session-reviews`.

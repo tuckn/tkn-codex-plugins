@@ -37,9 +37,11 @@ from tkn_codex_context.chat_logs import (  # noqa: E402
 )
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+LEGACY_STATE_SCHEMA_VERSION = 1
 STATE_FILENAME = "chat-refresh-state.json"
 DECISION_ID_PATTERN = re.compile(r"^DR-\d{4}$")
+SOURCE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
 
 class RefreshError(RuntimeError):
@@ -121,11 +123,24 @@ def physical_path(value: str | Path) -> Path:
     return absolute_path(value).resolve(strict=False)
 
 
-def unique_paths(values: Sequence[str | Path]) -> list[str]:
+def stable_root_text(value: str | Path, base: Path | None = None) -> str:
+    raw = str(value).strip().rstrip("\\/")
+    if not raw:
+        return ""
+    if re.match(r"^[A-Za-z]:[\\/]", raw) or raw.startswith(("/", "\\\\")):
+        return raw
+    return str(absolute_path(raw, base))
+
+
+def unique_paths(
+    values: Sequence[str | Path],
+    *,
+    base: Path | None = None,
+) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
     for value in values:
-        text = str(absolute_path(value))
+        text = stable_root_text(value, base)
         key = normalize_path_text(text)
         if key and key not in seen:
             result.append(text)
@@ -134,18 +149,21 @@ def unique_paths(values: Sequence[str | Path]) -> list[str]:
 
 
 def equivalent_path(value: str | Path, candidates: Sequence[str | Path]) -> bool:
-    direct = normalize_path_text(str(absolute_path(value)))
-    resolved = normalize_path_text(str(physical_path(value)))
+    direct = normalize_path_text(stable_root_text(value))
+    resolved = ""
+    try:
+        resolved = normalize_path_text(str(physical_path(value)))
+    except OSError:
+        pass
     for candidate in candidates:
-        if direct in {
-            normalize_path_text(str(absolute_path(candidate))),
-            normalize_path_text(str(physical_path(candidate))),
-        }:
+        candidate_keys = {normalize_path_text(stable_root_text(candidate))}
+        try:
+            candidate_keys.add(normalize_path_text(str(physical_path(candidate))))
+        except OSError:
+            pass
+        if direct in candidate_keys:
             return True
-        if resolved in {
-            normalize_path_text(str(absolute_path(candidate))),
-            normalize_path_text(str(physical_path(candidate))),
-        }:
+        if resolved and resolved in candidate_keys:
             return True
     return False
 
@@ -189,22 +207,106 @@ def resolve_project(
     return project_id, record, resolved_state, current_roots
 
 
-def empty_state(project_id: str, sessions_root: Path) -> dict[str, Any]:
+def validate_source_id(source_id: str) -> str:
+    if not SOURCE_ID_PATTERN.fullmatch(source_id):
+        raise RefreshError(
+            "source id must use lowercase letters, digits, dots, underscores, or hyphens"
+        )
+    return source_id
+
+
+def empty_state(project_id: str) -> dict[str, Any]:
     return {
         "schemaVersion": SCHEMA_VERSION,
         "projectId": project_id,
-        "sourceRoot": str(sessions_root),
         "approvedHistoricalRoots": [],
         "rejectedHistoricalRoots": [],
         "lastRefreshAt": None,
-        "threads": {},
+        "sources": {},
     }
 
 
-def load_state(path: Path, project_id: str, sessions_root: Path) -> dict[str, Any]:
+def migrate_legacy_state(
+    value: dict[str, Any],
+    *,
+    source_id: str,
+    sessions_root: Path,
+) -> dict[str, Any]:
+    legacy_root = str(value.get("sourceRoot") or sessions_root)
+    if normalize_path_text(legacy_root) == normalize_path_text(str(sessions_root)):
+        legacy_source_id = source_id
+    elif normalize_path_text(legacy_root) == normalize_path_text(
+        str(default_sessions_root())
+    ):
+        legacy_source_id = "windows"
+    else:
+        legacy_source_id = "legacy"
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "projectId": value.get("projectId"),
+        "approvedHistoricalRoots": value.get("approvedHistoricalRoots", []),
+        "rejectedHistoricalRoots": value.get("rejectedHistoricalRoots", []),
+        "lastRefreshAt": value.get("lastRefreshAt"),
+        "sources": {
+            legacy_source_id: {
+                "sourceRoot": legacy_root,
+                "lastRefreshAt": value.get("lastRefreshAt"),
+                "threads": value.get("threads", {}),
+            }
+        },
+    }
+
+
+def ensure_source_state(
+    state: dict[str, Any],
+    source_id: str,
+    sessions_root: Path,
+) -> dict[str, Any]:
+    sources = state["sources"]
+    source = sources.get(source_id)
+    if source is None:
+        source = {
+            "sourceRoot": str(sessions_root),
+            "lastRefreshAt": None,
+            "threads": {},
+        }
+        sources[source_id] = source
+        return source
+    if not isinstance(source, dict) or not isinstance(source.get("threads"), dict):
+        raise RefreshError(f"refresh state source {source_id} is invalid")
+    existing_root = str(source.get("sourceRoot") or "")
+    if existing_root and normalize_path_text(existing_root) != normalize_path_text(
+        str(sessions_root)
+    ):
+        raise RefreshError(
+            f"source id {source_id} is already bound to another sessions root"
+        )
+    source["sourceRoot"] = str(sessions_root)
+    return source
+
+
+def load_state(
+    path: Path,
+    project_id: str,
+    sessions_root: Path,
+    source_id: str,
+) -> dict[str, Any]:
+    source_id = validate_source_id(source_id)
     if not path.exists():
-        return empty_state(project_id, sessions_root)
-    value = read_json(path)
+        value = empty_state(project_id)
+        ensure_source_state(value, source_id, sessions_root)
+        return value
+    loaded = read_json(path)
+    if not isinstance(loaded, dict):
+        raise RefreshError(f"refresh state must be a JSON object: {path}")
+    if loaded.get("schemaVersion") == LEGACY_STATE_SCHEMA_VERSION:
+        value = migrate_legacy_state(
+            loaded,
+            source_id=source_id,
+            sessions_root=sessions_root,
+        )
+    else:
+        value = loaded
     if not isinstance(value, dict):
         raise RefreshError(f"refresh state must be a JSON object: {path}")
     if value.get("schemaVersion") != SCHEMA_VERSION:
@@ -214,8 +316,9 @@ def load_state(path: Path, project_id: str, sessions_root: Path) -> dict[str, An
     for key in ("approvedHistoricalRoots", "rejectedHistoricalRoots"):
         if not isinstance(value.get(key), list):
             raise RefreshError(f"refresh state {key} must be a list")
-    if not isinstance(value.get("threads"), dict):
-        raise RefreshError("refresh state threads must be an object")
+    if not isinstance(value.get("sources"), dict):
+        raise RefreshError("refresh state sources must be an object")
+    ensure_source_state(value, source_id, sessions_root)
     return value
 
 
@@ -241,16 +344,16 @@ def apply_root_choices(
     *,
     base: Path,
 ) -> tuple[list[str], list[str]]:
-    approved_inputs = [*state["approvedHistoricalRoots"], *(absolute_path(v, base) for v in approve_roots)]
-    rejected_inputs = [*state["rejectedHistoricalRoots"], *(absolute_path(v, base) for v in reject_roots)]
-    approved = unique_paths(approved_inputs)
-    rejected = unique_paths(rejected_inputs)
+    approved_inputs = [*state["approvedHistoricalRoots"], *approve_roots]
+    rejected_inputs = [*state["rejectedHistoricalRoots"], *reject_roots]
+    approved = unique_paths(approved_inputs, base=base)
+    rejected = unique_paths(rejected_inputs, base=base)
     approved_keys = {normalize_path_text(value) for value in approved}
     rejected_keys = {normalize_path_text(value) for value in rejected}
     for value in approve_roots:
-        rejected_keys.discard(normalize_path_text(str(absolute_path(value, base))))
+        rejected_keys.discard(normalize_path_text(stable_root_text(value, base)))
     for value in reject_roots:
-        approved_keys.discard(normalize_path_text(str(absolute_path(value, base))))
+        approved_keys.discard(normalize_path_text(stable_root_text(value, base)))
     approved = [value for value in approved if normalize_path_text(value) in approved_keys]
     rejected = [value for value in rejected if normalize_path_text(value) in rejected_keys]
     return approved, rejected
@@ -260,6 +363,7 @@ def scan_project(
     repo_root: Path,
     sessions_root: Path,
     *,
+    source_id: str = "windows",
     registry_path: Path | None = None,
     state_file: Path | None = None,
     approve_roots: Sequence[str] = (),
@@ -269,6 +373,7 @@ def scan_project(
     include_messages: bool = False,
     repository_url: str | None = None,
 ) -> dict[str, Any]:
+    source_id = validate_source_id(source_id)
     repo_root = absolute_path(repo_root)
     sessions_root = absolute_path(sessions_root)
     if not sessions_root.is_dir():
@@ -276,7 +381,8 @@ def scan_project(
     project_id, _record, resolved_state, current_roots = resolve_project(
         repo_root, registry_path=registry_path, state_file=state_file
     )
-    state = load_state(resolved_state, project_id, sessions_root)
+    state = load_state(resolved_state, project_id, sessions_root, source_id)
+    source_state = state["sources"][source_id]
     approved, rejected = apply_root_choices(state, approve_roots, reject_roots, base=repo_root)
     accepted_roots = unique_paths([*current_roots, *approved])
     normalized_repo_url = normalize_repository_url(
@@ -322,8 +428,9 @@ def scan_project(
             continue
 
         relative_ref = source_ref(path, sessions_root)
-        fingerprint = fingerprint_session(session, selected_messages, relative_ref)
-        prior = state["threads"].get(session.id, {})
+        qualified_ref = f"{source_id}/{relative_ref}"
+        fingerprint = fingerprint_session(session, selected_messages, qualified_ref)
+        prior = source_state["threads"].get(session.id, {})
         if full:
             status = "full"
         elif not prior:
@@ -337,7 +444,9 @@ def scan_project(
             "timestamp": session.timestamp,
             "cwd": session.cwd,
             "repositoryUrl": session.repository_url,
-            "sourceRef": relative_ref,
+            "sourceId": source_id,
+            "sourceRef": qualified_ref,
+            "sourceRelativeRef": relative_ref,
             "fingerprint": fingerprint,
             "status": status,
             "messageCount": len(selected_messages),
@@ -365,12 +474,17 @@ def scan_project(
         "changed": sum(row["status"] == "changed" for row in session_rows),
         "full": sum(row["status"] == "full" for row in session_rows),
         "unchanged": sum(row["status"] == "unchanged" for row in session_rows),
-        "missingFromSource": 0 if thread_filter else len(set(state["threads"]) - matched_thread_ids),
+        "missingFromSource": (
+            0
+            if thread_filter
+            else len(set(source_state["threads"]) - matched_thread_ids)
+        ),
     }
     return {
         "schemaVersion": SCHEMA_VERSION,
         "generatedAt": now_iso(),
         "projectId": project_id,
+        "sourceId": source_id,
         "repoRoot": str(repo_root),
         "sourceRoot": str(sessions_root),
         "stateFile": str(resolved_state),
@@ -414,9 +528,11 @@ def commit_refresh(
     if not isinstance(result, dict) or not isinstance(result.get("processed", []), list):
         raise RefreshError("result must contain a processed list")
     project_id = str(scan.get("projectId") or "")
+    source_id = validate_source_id(str(scan.get("sourceId") or ""))
     sessions_root = Path(str(scan.get("sourceRoot") or ""))
     resolved_state = state_file or Path(str(scan.get("stateFile") or ""))
-    state = load_state(resolved_state, project_id, sessions_root)
+    state = load_state(resolved_state, project_id, sessions_root, source_id)
+    source_state = state["sources"][source_id]
     scan_sessions = {
         str(item.get("threadId") or ""): item
         for item in scan.get("sessions", [])
@@ -436,7 +552,10 @@ def commit_refresh(
         if fingerprint != scanned.get("fingerprint"):
             raise RefreshError(f"result fingerprint does not match scan for thread {thread_id}")
 
-        relative_ref = str(scanned.get("sourceRef") or "")
+        relative_ref = str(scanned.get("sourceRelativeRef") or "")
+        qualified_ref = str(scanned.get("sourceRef") or "")
+        if not relative_ref or qualified_ref != f"{source_id}/{relative_ref}":
+            raise RefreshError(f"invalid source reference for thread {thread_id}")
         source_path = (sessions_root / relative_ref).resolve()
         try:
             source_path.relative_to(sessions_root.resolve())
@@ -448,7 +567,11 @@ def commit_refresh(
         if not source_session:
             raise RefreshError(f"source log no longer has session metadata: {relative_ref}")
         selected_messages = select_messages_for_roots(source_session, accepted_roots)
-        current_fingerprint = fingerprint_session(source_session, selected_messages, relative_ref)
+        current_fingerprint = fingerprint_session(
+            source_session,
+            selected_messages,
+            qualified_ref,
+        )
         if current_fingerprint != fingerprint:
             raise RefreshError(f"source log changed after scan for thread {thread_id}")
 
@@ -459,7 +582,7 @@ def commit_refresh(
             raise RefreshError(f"invalid decisionIds for thread {thread_id}")
         updates[thread_id] = {
             "fingerprint": fingerprint,
-            "sourceRefs": [relative_ref],
+            "sourceRefs": [qualified_ref],
             "sessionNotes": result_session_notes(item),
             "decisionIds": [str(value) for value in decision_ids],
             "processedAt": str(item.get("processedAt") or now_iso()),
@@ -474,19 +597,23 @@ def commit_refresh(
     if not updates and not root_choices_changed:
         return {
             "stateFile": str(resolved_state),
+            "sourceId": source_id,
             "processedCount": 0,
             "lastRefreshAt": state.get("lastRefreshAt"),
             "noChange": True,
         }
 
-    state["sourceRoot"] = str(sessions_root)
     state["approvedHistoricalRoots"] = approved_roots
     state["rejectedHistoricalRoots"] = rejected_roots
-    state["threads"].update(updates)
-    state["lastRefreshAt"] = now_iso()
+    source_state["sourceRoot"] = str(sessions_root)
+    source_state["threads"].update(updates)
+    refreshed_at = now_iso()
+    source_state["lastRefreshAt"] = refreshed_at
+    state["lastRefreshAt"] = refreshed_at
     atomic_write_json(resolved_state, state)
     return {
         "stateFile": str(resolved_state),
+        "sourceId": source_id,
         "processedCount": len(updates),
         "lastRefreshAt": state["lastRefreshAt"],
     }
@@ -498,7 +625,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     scan = subparsers.add_parser("scan", help="Scan registered-project chats without writing project context.")
     scan.add_argument("--repo-root", default=".")
-    scan.add_argument("--sessions-root", default=str(default_sessions_root()), help="Testing override.")
+    scan.add_argument("--sessions-root", default=str(default_sessions_root()))
+    scan.add_argument(
+        "--source-id",
+        default="windows",
+        help="Stable lowercase id for this sessions root, such as windows or wsl.",
+    )
     scan.add_argument("--state-file", help="Testing override.")
     scan.add_argument("--approve-root", action="append", default=[])
     scan.add_argument("--reject-root", action="append", default=[])
@@ -523,6 +655,7 @@ def main(argv: list[str] | None = None) -> int:
             scan = scan_project(
                 Path(args.repo_root),
                 Path(args.sessions_root),
+                source_id=args.source_id,
                 state_file=Path(args.state_file) if args.state_file else None,
                 approve_roots=args.approve_root,
                 reject_roots=args.reject_root,
