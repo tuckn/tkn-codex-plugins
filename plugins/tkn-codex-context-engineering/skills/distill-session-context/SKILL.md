@@ -29,10 +29,12 @@ The marker file alone does not trigger distillation or finalization. If project 
 6. Review the generated candidate before promoting anything.
 7. After accepted content exists somewhere durable, finalize the source session metadata.
 
-For v2, deterministic extraction follows the stable parent sections `Decision Candidates`,
-`Reusable Learnings`, `Open Loops`, `Handoff`, `Outcome`, `Current State`, `User Confirmations`,
-and `Evidence`, including their nested candidate IDs and fields. The default extraction bound is
-40 non-empty lines per selected section. Semantic generalization still requires Codex review.
+For v2, deterministic extraction follows the stable parent sections `Summary`, `Key Developments`,
+`Last Known State`, `Evidence`, and `Source Notes`. The default extraction bound is 40 non-empty
+lines per selected section. This Skill, not the session writer, performs the semantic review needed
+to identify decision candidates, project-current-truth candidates, reusable learning, and follow-up.
+Never treat an assistant proposal as a user-approved decision merely because it appears in the
+source note.
 
 ## Commands
 

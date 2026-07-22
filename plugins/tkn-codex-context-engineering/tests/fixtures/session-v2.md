@@ -1,8 +1,8 @@
 ---
 type: session
 schemaVersion: 2
-title: Current V2 Session
-description: A structured v2 session fixture.
+title: Factual Session Contract
+description: The session writer was rebuilt as a source-near factual digest.
 generator: Codex
 status: done
 distillationStatus: pending
@@ -14,93 +14,37 @@ sessionId: 20260201T090000+0900
 
 # Session Note
 
-## Objective
+## Summary
 
-### Goal
+- The session writer was rebuilt as a source-near factual digest.
+- Required content was reduced to summary, key developments, and last known state.
+- Semantic promotion remains a downstream review responsibility.
 
-Confirm the schema v2 contract.
+## Key Developments
 
-### Done Criteria
+### WI-01: Session contract
 
-- Extract structured evidence and candidates.
+- Request: Replace the over-distilled handoff schema with a realistic factual record.
+- Clarification / Correction: Treat the new contract as a complete redesign without compatibility history.
+- Action: Defined three required body sections and two optional evidence-oriented sections.
+- Explicit Decision: Use three required body sections: `Summary`, `Key Developments`, and `Last Known State`.
 
-## Outcome
+### WI-02: Downstream alignment
 
-- The three artifact roles were separated.
+- Action: Updated resume and distillation readers to consume the factual structure.
+- Validation: The session fixture checks passed.
+- Reported Result: Decision and current-truth classification no longer occurs in the session writer.
 
-## Current State
+## Last Known State
 
-- Session v2 is the current writer contract.
-
-## User Confirmations
-
-### Approved
-
-- Use stable candidate identifiers.
-
-### Rejected
-
-- Do not infer user approval from assistant proposals.
-
-### Preferences And Constraints
-
-- Keep public fixtures free of personal paths.
+- Work State: done — the factual session contract is implemented in the fixture.
+- Latest User Direction: Treat the new contract as a complete redesign.
 
 ## Evidence
 
-### Changed Files
+- Changed: `project:/plugins/example/SKILL.md`
+- Validation: compatibility suite — fixture checks passed.
 
-- `project:/README.md`
+## Source Notes
 
-### Validation
-
-- Unit tests passed.
-
-### Relevant Sources
-
-- `project:/plugins/example/SKILL.md`
-
-## Decision Candidates
-
-### DC-01: Keep writer Skills canonical
-
-- Status: accepted
-- Scope: project
-- Decision: Keep field and section contracts in writer Skills.
-- Rationale: Downstream Skills already read those contracts.
-- Evidence: `project:/plugins/example/SKILL.md`
-- Promotion Target: working-context
-
-## Reusable Learnings
-
-### What Worked
-
-- Stable parent sections preserved nested candidate fields.
-
-### Failed Approaches
-
-- Number-only schema upgrades lose semantic meaning.
-
-### Skill And Automation Signals
-
-#### SA-01: Validate artifact fixtures
-
-- Kind: automation
-- Signal: Run the compatibility matrix for every schema change.
-- Evidence: Plugin unit tests.
-- Reuse Scope: global
-- Suggested Follow-up: Add the matrix to release validation.
-
-## Open Loops
-
-- Add golden migration outputs if deterministic migration is introduced.
-
-## Handoff
-
-### Next Steps
-
-- Run all compatibility tests.
-
-### Exact Next Step
-
-- Execute the plugin-level fixture test suite.
+- No separate done condition was stated in the source, so none was inferred.

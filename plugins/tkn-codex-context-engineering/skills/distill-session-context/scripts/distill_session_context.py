@@ -45,13 +45,13 @@ from tkn_codex_context.safety import has_secret_like_content  # noqa: E402
 
 DISTILL_SECTION_GROUPS = {
     "1": {
-        "reusable": [
+        "digest": [
             "important decisions",
             "what worked",
             "failed approaches",
             "constraints",
         ],
-        "follow_up": [
+        "continuation": [
             "open issues",
             "next steps",
             "exact next step",
@@ -64,18 +64,15 @@ DISTILL_SECTION_GROUPS = {
         ],
     },
     "2": {
-        "reusable": [
-            "decision candidates",
-            "reusable learnings",
+        "digest": [
+            "summary",
+            "key developments",
         ],
-        "follow_up": [
-            "open loops",
-            "handoff",
+        "continuation": [
+            "last known state",
+            "source notes",
         ],
         "evidence": [
-            "outcome",
-            "current state",
-            "user confirmations",
             "evidence",
         ],
     },
@@ -185,11 +182,11 @@ def render_session_distillation(
 - Promote only the reusable parts to working context, decisions, global context, AGENTS.md, or a Skill.
 - Do not promote raw chronological detail unless it prevents a repeated failure.
 
-{render_distill_section_group("Reusable Learnings", DISTILL_SECTION_GROUPS[schema_version]["reusable"], sections, args.max_section_lines)}
+{render_distill_section_group("Factual Session Digest", DISTILL_SECTION_GROUPS[schema_version]["digest"], sections, args.max_section_lines)}
 
-{render_distill_section_group("Follow-Up Candidates", DISTILL_SECTION_GROUPS[schema_version]["follow_up"], sections, args.max_section_lines)}
+{render_distill_section_group("Continuation Evidence", DISTILL_SECTION_GROUPS[schema_version]["continuation"], sections, args.max_section_lines)}
 
-{render_distill_section_group("Evidence Snapshot", DISTILL_SECTION_GROUPS[schema_version]["evidence"], sections, args.max_section_lines)}
+{render_distill_section_group("Supporting Evidence", DISTILL_SECTION_GROUPS[schema_version]["evidence"], sections, args.max_section_lines)}
 
 ## Exclusions
 

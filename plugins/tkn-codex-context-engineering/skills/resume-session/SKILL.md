@@ -54,27 +54,22 @@ Project `sessions/` 全体を理解目的で読まない。読むのは指定 se
 4. この chat の canonical session note path を、指定 session note として扱う。
 5. 以後この chat では、新しい session note を作成しない。
 6. `write-session-note` が必要な更新は、必ず指定 session note に書く。
-7. 閲覧だけでなく本文を更新する場合、v1 note は `write-session-note` の schema compatibility policy に従って全体を v2 へ migrate する。番号だけ `2` にしない。
-8. 作業再開時点で、Frontmatter の `status` を `in-progress` にする。ただし user が閲覧のみを依頼している場合は変更しない。
-9. Skill が session note を更新したら、Frontmatter の `updated` を OS/system clock の timestamp に更新する。
-10. 再開した事実、現在の user intent、次の一手を v2 の該当 section に短く反映する。
-11. 重要な current truth が変わる場合だけ、project `working-context.md` も更新する。
+7. 作業再開時点で、Frontmatter の `status` を `in-progress` にする。ただし user が閲覧のみを依頼している場合は変更しない。
+8. Skill が session note を更新したら、Frontmatter の `updated` を OS/system clock の timestamp に更新する。
+9. 本文を更新する場合は `write-session-note` の current structure に従い、再開後に確認できた request、action、result、last known state を反映する。既存の material facts を失わない。
+10. 重要な current truth が変わる場合だけ、project `working-context.md` も更新する。
 
 ## What to update in the session note
 
-必要な section だけ更新する。
+必須 section は、再開後の事実を含むよう更新する。
 
-- `Objective`: 追加された goal または done criteria。
-- `Outcome`: resume 後に実際に得られた結果。
-- `Current State`: resume 後に成立している状態。
-- `User Confirmations`: 新しい approval、rejection、preference、constraint。
-- `Evidence`: resume 後に変更した files、validation、relevant sources。
-- `Decision Candidates`: resume 後に増えた durable decision candidates。
-- `Reusable Learnings`: 新たに確認した成功方法、failed approach、Skill / automation signal。
-- `Open Loops`: 未解決の blocker、question、risk。
-- `Handoff`: concrete next steps と exact next step。
+- `Summary`: session 全体について、何が対象で、何が行われ、最後にどうなったか。
+- `Key Developments`: 新しい request、correction、action、reported result、validation、explicit decision。
+- `Last Known State`: 現在の work state と最後に有効な user direction。実際に残る場合だけ unresolved item または continuation point。
 
-chronological log は増やしすぎない。resume の事実は、後続作業に必要な範囲で短く書く。
+material な根拠が増えた場合だけ `Evidence` を、source の欠落や uncertainty がある場合だけ `Source Notes` を更新する。
+
+chronological log を機械的に増やさない。重複を統合し、later correction が earlier request や proposal を上書きした場合はその変化を保つ。chat から確認できない goal、done condition、rationale、exact next step は補わない。
 
 ## Relationship to write-session-note
 

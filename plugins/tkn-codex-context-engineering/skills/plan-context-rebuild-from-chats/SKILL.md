@@ -76,6 +76,37 @@ python -B <skill-root>/scripts/plan_context_rebuild_from_chats.py `
 
 承認後も、いきなり既存 state を上書きしない。Shadow destination へ v2 artifact を生成し、件数、代表サンプル、機密情報混入、link、schema を検証してから切替工程を提案する。
 
+## Materialize a shadow draft
+
+Root alias と unresolved scope のreviewが完了したplanだけを使う。新規のshadow rootを指定し、
+live context storeやsessions sourceの内側をoutputにしない。
+
+```powershell
+python -B <skill-root>/scripts/materialize_context_rebuild_shadow.py `
+  --plan "$env:TEMP\codex-context-rebuild-plan-confirmed.json" `
+  --output-root "<new-shadow-root>"
+```
+
+Materializerは次だけを作る。
+
+- Assigned threadごとのschema v2 session note。
+- Projectごとのschema v2 `working-context.md` shadow draft。
+- 明示的な承認表現をreview用に集めた `decision-candidates.json`。
+- 件数とreview gateを持つ `shadow-manifest.json`。
+
+Assistantの報告をcurrent truthとして確定せず、working contextは`status: stale`、decision candidate
+は`unclear`とする。Decision recordは自動作成しない。Current repository evidenceとの照合後に、
+acceptedでdurableな候補だけを`record-decision`でschema v2へ昇格する。
+
+生成後は全artifactを読み取り専用で再検証する。
+
+```powershell
+python -B <skill-root>/scripts/materialize_context_rebuild_shadow.py `
+  --plan "$env:TEMP\codex-context-rebuild-plan-confirmed.json" `
+  --output-root "<existing-shadow-root>" `
+  --validate-only
+```
+
 ## Safety
 
 - Full message text、secret、credential、private key を plan に複製しない。
@@ -83,3 +114,4 @@ python -B <skill-root>/scripts/plan_context_rebuild_from_chats.py `
 - Registry にない Project を推測で追加しない。
 - Git repository URL 一致だけで Project を確定しない。
 - Source ID を省略して複数 archive を混ぜない。
+- Existing output rootを上書き、merge、削除しない。

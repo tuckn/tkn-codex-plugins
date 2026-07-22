@@ -81,10 +81,13 @@ class DistillSessionContextTests(unittest.TestCase):
             self.assertEqual(0, result)
             candidate_text = next(candidates.glob("*.md")).read_text(encoding="utf-8")
             self.assertIn("sourceSchemaVersion: 2", candidate_text)
-            self.assertIn("DC-01: Keep writer Skills canonical", candidate_text)
-            self.assertIn("SA-01: Validate artifact fixtures", candidate_text)
-            self.assertIn("Execute the plugin-level fixture test suite.", candidate_text)
-            self.assertIn("Unit tests passed.", candidate_text)
+            self.assertIn("## Factual Session Digest", candidate_text)
+            self.assertIn("### Key Developments", candidate_text)
+            self.assertIn("Use three required body sections", candidate_text)
+            self.assertIn("### Last Known State", candidate_text)
+            self.assertIn("the factual session contract is implemented", candidate_text)
+            self.assertIn("### Evidence", candidate_text)
+            self.assertIn("fixture checks passed", candidate_text)
 
             with redirect_stdout(io.StringIO()):
                 result = distill.finalize_main(

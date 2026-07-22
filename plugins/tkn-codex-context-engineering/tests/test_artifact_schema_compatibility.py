@@ -95,10 +95,12 @@ class ArtifactSchemaCompatibilityTests(unittest.TestCase):
 
     def test_v2_fixtures_contain_the_stable_contract_signals(self) -> None:
         session = self.fixture_text("session-v2.md")
-        self.assertIn("## User Confirmations", session)
-        self.assertIn("### DC-01:", session)
-        self.assertIn("#### SA-01:", session)
-        self.assertIn("## Handoff", session)
+        self.assertIn("## Summary", session)
+        self.assertIn("## Key Developments", session)
+        self.assertIn("### WI-01:", session)
+        self.assertIn("## Last Known State", session)
+        self.assertIn("## Evidence", session)
+        self.assertIn("## Source Notes", session)
 
         decision = self.fixture_text("decision-v2.md")
         decision_metadata = parse_simple_frontmatter(decision)
@@ -126,6 +128,34 @@ class ArtifactSchemaCompatibilityTests(unittest.TestCase):
         self.assertIn("## Effective Decisions", working_context)
         self.assertIn("## Key Files And Evidence", working_context)
         self.assertIn("## Resumption", working_context)
+
+    def test_session_v2_core_fixture_omits_empty_optional_sections(self) -> None:
+        session = self.fixture_text("session-v2-core.md")
+        metadata = parse_simple_frontmatter(session)
+        self.assertEqual("2", require_supported_artifact_schema(metadata, "session note"))
+
+        for heading in (
+            "# Session Note",
+            "## Summary",
+            "## Key Developments",
+            "## Last Known State",
+        ):
+            self.assertIn(heading, session)
+
+        for label in (
+            "- Request:",
+            "- Action:",
+            "- Reported Result:",
+            "- Work State:",
+            "- Latest User Direction:",
+        ):
+            self.assertIn(label, session)
+
+        for heading in (
+            "## Evidence",
+            "## Source Notes",
+        ):
+            self.assertNotIn(heading, session)
 
 
 if __name__ == "__main__":

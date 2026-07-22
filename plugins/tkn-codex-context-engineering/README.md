@@ -142,18 +142,16 @@ working-context updates, reviews, or global context.
 `write-session-note` converts non-trivial work performed in one Codex chat or thread into a
 project-scoped record that can be resumed and reviewed later.
 
-A session note is not a shortened transcript. It is a handoff record designed to prevent a future
-human or Codex session from repeating the same work.
+A session note is a source-near factual digest. It is shorter than the chat, while preserving the
+facts needed to understand what was requested, what changed, and where the work stopped.
 
 It primarily records:
 
-- the intended outcome and done criteria;
-- current progress and state;
-- user approvals, corrections, rejections, preferences, and constraints;
-- changed files and validation results;
-- important decision candidates;
-- successful approaches and meaningful failed approaches;
-- unresolved issues, next steps, and the exact next step.
+- user requests, clarifications, and corrections;
+- actions actually performed and results actually reported;
+- explicit decisions and validation results;
+- the last known work state and latest user direction;
+- material evidence and source limitations when needed.
 
 A session note remains source-near context. By itself, it is not project current truth or a durable
 rule.
@@ -292,19 +290,18 @@ extraction and comparison.
 ### Artifact Schema Versioning
 
 New project session notes, decision records, and working contexts use `schemaVersion: 2`.
-Session v2 is a distillable evidence package, decision v2 is a reusable unit of judgement, and
-working-context v2 is a project control plane with portfolio metadata. An artifact without
-`schemaVersion` is treated as legacy v1. Readers support v1 and v2, but writers must not relabel a
-v1 body as v2 without migrating its meaning into the v2 structure. Other versions are unsupported.
+Session v2 is a source-near factual digest, decision v2 is a reusable unit of judgement, and
+working-context v2 is a project control plane with portfolio metadata. Readers may retain support
+for earlier artifacts, while writer Skills define only the current output contract. Unsupported
+versions are rejected rather than guessed.
 
 | Artifact | v2 role | Stable extraction signals |
 |---|---|---|
-| Session note | Distillable evidence package | confirmations, evidence, `DC-NN`, reusable learnings, open loops, handoff |
+| Session note | Source-near factual digest | summary, key developments, last known state, evidence, source notes |
 | Decision record | Reusable unit of judgement | rationale, applicability, `implementationStatus`, verification, materialization, supersession |
 | Working context | Project control plane | lifecycle, health, priority, focus, blocker, next action, activity/review dates, dependencies |
 
-The canonical field, section, enum, and v1-to-v2 migration contracts live in the corresponding
-writer Skills.
+The canonical current field, section, and enum contracts live in the corresponding writer Skills.
 
 ## Local And Global Context
 
@@ -411,7 +408,9 @@ Included Skills are grouped by the role they play in the context lifecycle.
 - `plan-context-rebuild-from-chats`:
   - Compares all registry projects with multiple named Codex sessions sources, inventories existing
     artifact schema versions, and writes a read-only rebuild plan containing direct assignments,
-    root-approval candidates, unresolved sessions, parser gaps, and duplicate thread IDs.
+    root-approval candidates, unresolved sessions, parser gaps, and duplicate thread IDs. After
+    review, it can materialize schema-v2 session notes and stale working-context drafts into a new
+    shadow tree while keeping decision candidates behind a review gate.
 - `search-all-codex-chats`:
   - Searches Codex JSONL chat history across all projects on the current computer and uses matched
     evidence to answer questions about past discussions, decisions, and outcomes.
