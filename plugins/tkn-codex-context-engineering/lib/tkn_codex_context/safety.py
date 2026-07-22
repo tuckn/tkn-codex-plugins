@@ -13,6 +13,9 @@ SECRET_PATTERNS = [
 ]
 
 
+REDACTION_MARKER = "[REDACTED]"
+
+
 def has_secret_like_content(text: str) -> list[str]:
     hits = []
     for pattern in SECRET_PATTERNS:
@@ -21,3 +24,10 @@ def has_secret_like_content(text: str) -> list[str]:
             hits.append(pattern.pattern)
     return hits
 
+
+def redact_secret_like_content(text: str) -> str:
+    """Replace common credential shapes while preserving surrounding evidence."""
+    redacted = text
+    for pattern in SECRET_PATTERNS:
+        redacted = pattern.sub(REDACTION_MARKER, redacted)
+    return redacted

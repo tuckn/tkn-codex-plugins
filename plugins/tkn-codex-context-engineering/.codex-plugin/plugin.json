@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
   "version": "0.15.0",
-  "description": "Initialize Codex projects, plan and shadow-materialize multi-source context rebuilds, read and refresh private project context, aggregate registered project portfolios, search and review Codex chats, and manage sessions, decisions, memos, freshness, and distillation.",
+  "description": "Initialize Codex projects, automatically generate session notes from local chats, plan and shadow-materialize multi-source context rebuilds, read and refresh private project context, aggregate registered project portfolios, search and review Codex chats, and manage sessions, decisions, memos, freshness, and distillation.",
   "author": {
     "name": "Tuckn"
   },
@@ -15,6 +15,8 @@
     "working-context",
     "session-logs",
     "session-notes",
+    "automation",
+    "cli",
     "decisions",
     "memos",
     "chat-review",
@@ -31,7 +33,7 @@
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Read and maintain private Codex project context",
-    "longDescription": "A Codex plugin for project initialization through .tkn/codex-context.yaml, read-only multi-source rebuild planning, schema-v2 shadow draft materialization, current-project orientation from private working dashboards, project-scoped refresh from named Codex chat archives, registered-project portfolio aggregation, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
+    "longDescription": "A Codex plugin and companion CLI for project initialization through .tkn/codex-context.yaml, unattended session-note generation from local Codex chats, read-only multi-source rebuild planning, schema-v2 shadow draft materialization, current-project orientation from private working dashboards, project-scoped refresh from named Codex chat archives, registered-project portfolio aggregation, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [

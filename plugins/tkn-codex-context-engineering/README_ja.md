@@ -349,7 +349,7 @@ Skill固有のscripts:
 plugins/tkn-codex-context-engineering/skills/<skill-name>/scripts/
 ```
 
-複数Skillで共有するimport専用Python helper:
+複数SkillとCLIで共有するPython package:
 
 ```text
 plugins/tkn-codex-context-engineering/lib/tkn_codex_context/
@@ -358,6 +358,40 @@ plugins/tkn-codex-context-engineering/lib/tkn_codex_context/
 同梱Python entry pointはbytecode cacheの書き込みを無効化します。repository内に
 `__pycache__`を作らず、Python bytecodeをuser cacheへ移しません。将来
 `~/.cache/net.tuckn/codex-context`を使う場合は、再生成可能なapplication data専用とします。
+
+## Session note の自動生成
+
+このpluginのPython packageは、Codex chatを開かずに全登録済みactive projectのsession noteを
+生成するCLIも提供します。Marketplaceからpluginを導入するだけではCLIはPATHへ追加されないため、
+同じsourceを別途installします。
+
+```powershell
+uv tool install ./plugins/tkn-codex-context-engineering
+tkn-codex-context session-notes configure
+tkn-codex-context session-notes run --dry-run
+```
+
+日次処理は導入日時以降に新規作成または更新され、最終更新から30分以上経過したchatを対象にします。
+件数上限はありません。処理開始から3時間50分を過ぎると新しいthreadへ進まず、残りは次回へ送ります。
+生成または更新に成功したnoteは、確認待ちfolderを経由せずprojectの`sessions/`へ直接保存され、
+`reviewStatus: unreviewed`が設定されます。Decisionとworking contextは変更しません。
+
+導入以前のchatは明示的なbackfillだけで処理します。
+
+```powershell
+tkn-codex-context session-notes backfill --project-id <projectId> --limit 1 --dry-run
+tkn-codex-context session-notes backfill --project-id <projectId> --limit 1
+```
+
+Windowsでは、次のscriptで毎日03:00のTask Scheduler taskを確認・試行・登録・解除できます。
+Taskはuserがlog on中の場合だけ実行し、PCをwakeしません。
+
+```powershell
+pwsh -File ./plugins/tkn-codex-context-engineering/scripts/windows_task_scheduler.ps1 -Action Status
+pwsh -File ./plugins/tkn-codex-context-engineering/scripts/windows_task_scheduler.ps1 -Action Install -WhatIf
+pwsh -File ./plugins/tkn-codex-context-engineering/scripts/windows_task_scheduler.ps1 -Action Install
+pwsh -File ./plugins/tkn-codex-context-engineering/scripts/windows_task_scheduler.ps1 -Action Remove
+```
 
 ## 含まれる Skills
 

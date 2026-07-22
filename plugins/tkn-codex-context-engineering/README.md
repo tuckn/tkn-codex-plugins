@@ -356,7 +356,7 @@ Skill-specific scripts:
 plugins/tkn-codex-context-engineering/skills/<skill-name>/scripts/
 ```
 
-Shared import-only Python helpers:
+Shared Python package and CLI implementation:
 
 ```text
 plugins/tkn-codex-context-engineering/lib/tkn_codex_context/
@@ -365,6 +365,41 @@ plugins/tkn-codex-context-engineering/lib/tkn_codex_context/
 Bundled Python entry points disable bytecode-cache writes. The plugin does not place
 `__pycache__` under the repository or redirect Python bytecode into the user cache; a future
 `~/.cache/net.tuckn/codex-context` area is reserved for rebuildable application data when needed.
+
+## Automated Session Notes
+
+The plugin's Python package also provides a CLI that generates session notes for every registered
+active project without reopening the source chats. Marketplace installation does not add this CLI
+to `PATH`, so install the same source separately:
+
+```powershell
+uv tool install ./plugins/tkn-codex-context-engineering
+tkn-codex-context session-notes configure
+tkn-codex-context session-notes run --dry-run
+```
+
+The daily run processes chats created or updated after the installation watermark and idle for at
+least 30 minutes. There is no item-count cap. It stops starting new threads after 3 hours and 50
+minutes and leaves the rest for the next run. Successfully generated notes are written directly to
+the project's `sessions/` folder with `reviewStatus: unreviewed`; there is no review queue, and the
+pipeline does not update decisions or working context.
+
+Older chats are processed only through explicit backfill:
+
+```powershell
+tkn-codex-context session-notes backfill --project-id <projectId> --limit 1 --dry-run
+tkn-codex-context session-notes backfill --project-id <projectId> --limit 1
+```
+
+On Windows, use the bundled script to inspect, preview, install, or remove the daily 03:00 Task
+Scheduler task. It runs only while the user is logged on and does not wake the computer.
+
+```powershell
+pwsh -File ./plugins/tkn-codex-context-engineering/scripts/windows_task_scheduler.ps1 -Action Status
+pwsh -File ./plugins/tkn-codex-context-engineering/scripts/windows_task_scheduler.ps1 -Action Install -WhatIf
+pwsh -File ./plugins/tkn-codex-context-engineering/scripts/windows_task_scheduler.ps1 -Action Install
+pwsh -File ./plugins/tkn-codex-context-engineering/scripts/windows_task_scheduler.ps1 -Action Remove
+```
 
 ## Included Skills
 
