@@ -391,6 +391,36 @@ tkn-codex-context session-notes backfill --project-id <projectId> --limit 1 --dr
 tkn-codex-context session-notes backfill --project-id <projectId> --limit 1
 ```
 
+`backfill` means importing chats from before the CLI installation watermark. To rebuild one
+project's complete session-note set from its chats, use `rebuild`:
+
+```powershell
+tkn-codex-context session-notes rebuild --project-id <projectId> --dry-run
+tkn-codex-context session-notes rebuild --project-id <projectId>
+```
+
+If the same Git repository previously lived at another local root, approve that historical root
+explicitly. The CLI verifies that both roots have the same Git origin before using it, and saves
+the approval only after a successful non-dry-run rebuild.
+
+```powershell
+tkn-codex-context session-notes rebuild `
+  --project-id <projectId> `
+  --approve-root "C:\path\to\previous\checkout" `
+  --dry-run
+```
+
+Rebuild preserves existing schema-v2 notes by default, including v2 notes without chat provenance,
+and does not send preserved notes to the model. Use `--force` to regenerate chat-backed v2 notes.
+Legacy notes are removed only after every selected chat has generated and validated successfully;
+on any failure, the original notes and refresh state remain in place.
+
+An interrupted rebuild keeps validated generated notes in a private project work area and reuses
+them on the next compatible run. The work area is removed after a successful cutover. Run reports
+include per-thread duration, chunk and retry counts, note hashes, and generator metadata. Existing
+refresh-state threads that are absent from the current source scan are retained rather than
+silently deleted.
+
 On Windows, use the bundled script to inspect, preview, install, or remove the daily 03:00 Task
 Scheduler task. It runs only while the user is logged on and does not wake the computer.
 

@@ -20,9 +20,17 @@ sessionId: 20260202T090000+0900
 
 ## Key Developments
 
-- Request: Keep the core note small when no optional evidence is material.
-- Action: Recorded the request, observed result, and last known state.
-- Reported Result: Empty optional sections were omitted.
+### Request
+
+- Keep the core note small when no optional evidence is material.
+
+### Action
+
+- Recorded the request, observed result, and last known state.
+
+### Reported Result
+
+- Empty optional sections were omitted.
 
 ## Last Known State
 

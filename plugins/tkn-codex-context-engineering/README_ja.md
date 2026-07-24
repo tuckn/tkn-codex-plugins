@@ -383,6 +383,35 @@ tkn-codex-context session-notes backfill --project-id <projectId> --limit 1 --dr
 tkn-codex-context session-notes backfill --project-id <projectId> --limit 1
 ```
 
+`backfill`は、CLI導入日時より前のchatを後から取り込む処理です。指定したprojectのchatを基準に
+session note一式を再構築する場合は、`rebuild`を使います。
+
+```powershell
+tkn-codex-context session-notes rebuild --project-id <projectId> --dry-run
+tkn-codex-context session-notes rebuild --project-id <projectId>
+```
+
+同じGit repositoryが以前は別のlocal rootにあった場合、その旧rootを明示的に承認します。
+CLIは現在のrootと旧rootのGit originが一致することを検証します。承認内容は、試行表示では
+保存せず、通常実行の再構築が成功した後だけ保存します。
+
+```powershell
+tkn-codex-context session-notes rebuild `
+  --project-id <projectId> `
+  --approve-root "C:\path\to\previous\checkout" `
+  --dry-run
+```
+
+再構築では既存schema v2 noteを既定で保持し、chat由来でないv2 noteも生成AIへ送りません。
+chat由来のv2 noteを再生成する場合だけ`--force`を指定します。旧形式noteは、対象chatの
+生成と検証がすべて成功した後だけ削除します。1件でも失敗した場合は、元のnoteと処理状態を
+変更しません。
+
+再構築が途中終了した場合、検証済みの生成物はprivate projectの作業領域に保持し、元chatと
+生成方式が変わっていない次回実行で再利用します。正式反映後は作業領域を削除します。
+実行記録にはthreadごとの処理時間、分割数、再試行数、note hash、生成方式を保存します。
+今回のsource scanで見つからない既存threadの処理状態は、自動削除せず保持します。
+
 Windowsでは、次のscriptで毎日03:00のTask Scheduler taskを確認・試行・登録・解除できます。
 Taskはuserがlog on中の場合だけ実行し、PCをwakeしません。
 

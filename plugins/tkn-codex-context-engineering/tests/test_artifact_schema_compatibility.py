@@ -98,6 +98,9 @@ class ArtifactSchemaCompatibilityTests(unittest.TestCase):
         self.assertIn("## Summary", session)
         self.assertIn("## Key Developments", session)
         self.assertIn("### WI-01:", session)
+        self.assertIn("#### Request", session)
+        self.assertIn("#### Clarification / Correction", session)
+        self.assertIn("#### Explicit Decision", session)
         self.assertIn("## Last Known State", session)
         self.assertIn("## Evidence", session)
         self.assertIn("## Source Notes", session)
@@ -142,14 +145,25 @@ class ArtifactSchemaCompatibilityTests(unittest.TestCase):
         ):
             self.assertIn(heading, session)
 
+        for heading in (
+            "### Request",
+            "### Action",
+            "### Reported Result",
+        ):
+            self.assertIn(heading, session)
+
         for label in (
-            "- Request:",
-            "- Action:",
-            "- Reported Result:",
             "- Work State:",
             "- Latest User Direction:",
         ):
             self.assertIn(label, session)
+
+        for flat_label in (
+            "- Request:",
+            "- Action:",
+            "- Reported Result:",
+        ):
+            self.assertNotIn(flat_label, session)
 
         for heading in (
             "## Evidence",

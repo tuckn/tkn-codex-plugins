@@ -25,10 +25,13 @@ from tkn_codex_context.session_notes import (
     Project,
     chunk_events,
     execute_pipeline,
+    execute_rebuild,
     load_config,
     make_config,
     prepare_events,
+    render_note,
     scan_candidates,
+    validate_note_data,
     write_config,
 )
 
@@ -99,18 +102,34 @@ def note_data(candidate: Candidate, *, title: str = "Automated session") -> dict
     ids = [event.id for event in candidate.events]
     return {
         "title": title,
+        "fileSlug": "automated-session",
         "description": "A factual session digest.",
-        "summary": "The requested work was completed.",
-        "summaryEventIds": ids[:1],
-        "keyDevelopments": [
-            {"label": "Request", "text": "The user requested work.", "eventIds": ids[:1]},
-            {"label": "Result", "text": "The work completed.", "eventIds": ids[-1:]},
+        "summaryItems": [
+            {
+                "text": "The requested work was completed.",
+                "eventIds": ids[:1],
+            }
         ],
+        "workItems": [
+            {
+                "title": "Requested work",
+                "developments": [
+                    {"label": "Request", "text": "The user requested work.", "eventIds": ids[:1]},
+                    {
+                        "label": "Reported Result",
+                        "text": "The work completed.",
+                        "eventIds": ids[-1:],
+                    },
+                ],
+            }
+        ],
+        "evidence": [],
         "lastKnownState": {
             "workState": "done",
             "detail": "The assistant reported completion.",
             "latestUserDirection": "Complete the work.",
             "unresolved": [],
+            "unverified": [],
             "continuationPoint": "",
             "eventIds": ids[-1:],
         },
@@ -262,6 +281,9 @@ class SessionNotePipelineTests(unittest.TestCase):
         text = notes[0].read_text(encoding="utf-8")
         self.assertIn('reviewStatus: "unreviewed"', text)
         self.assertIn('sourceThreadIds:\n  - "thread-1"', text)
+        self.assertIn("# Session Note", text)
+        self.assertIn("### Request", text)
+        self.assertIn("### Reported Result", text)
         state = json.loads(self.project.state_path.read_text(encoding="utf-8"))
         self.assertIn("thread-1", state["sources"]["windows"]["threads"])
 
@@ -372,9 +394,11 @@ class SessionNotePipelineTests(unittest.TestCase):
         write_chat(path, thread_id="thread-1", cwd=self.repo)
         candidate = scan_candidates(self.config, [self.project])[0][0]
         captured: list[str] = []
+        prompts: list[str] = []
 
         def fake_run(command, **kwargs):
             captured.extend(command)
+            prompts.append(kwargs["input"])
             output = Path(command[command.index("--output-last-message") + 1])
             output.write_text(json.dumps(note_data(candidate)), encoding="utf-8")
             return SimpleNamespace(returncode=0, stderr="", stdout="")
@@ -388,6 +412,370 @@ class SessionNotePipelineTests(unittest.TestCase):
         self.assertIn("--ignore-user-config", captured)
         self.assertEqual("gpt-5.6-sol", captured[captured.index("--model") + 1])
         self.assertIn('model_reasoning_effort="high"', captured)
+        self.assertIn("natural Japanese", prompts[0])
+        self.assertIn("fileSlug", prompts[0])
+
+    def test_rebuild_success_replaces_legacy_notes_and_is_idempotent(self) -> None:
+        for thread in ("thread-1", "thread-2"):
+            write_chat(self.sessions / f"{thread}.jsonl", thread_id=thread, cwd=self.repo)
+        self.project.sessions_path.mkdir(parents=True)
+        (self.project.sessions_path / "legacy.md").write_text(
+            "---\ntype: session\ntitle: Legacy\n---\n\n# Legacy\n",
+            encoding="utf-8",
+        )
+
+        report, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=FakeSummarizer(),
+            cache_root=self.cache,
+        )
+
+        self.assertEqual([], report["failed"])
+        self.assertEqual(2, report["generationCount"])
+        self.assertEqual(["legacy.md"], [item["file"] for item in report["deletedLegacy"]])
+        notes = sorted(self.project.sessions_path.glob("*.md"))
+        self.assertEqual(2, len(notes))
+        self.assertTrue(all("schemaVersion: 2" in path.read_text(encoding="utf-8") for path in notes))
+
+        second, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=None,
+            dry_run=True,
+            cache_root=self.cache,
+        )
+        self.assertEqual(0, second["generationCount"])
+        self.assertEqual(2, len(second["preservedV2"]))
+        self.assertEqual([], second["deletedLegacy"])
+
+    def test_rebuild_failure_keeps_legacy_notes_and_state(self) -> None:
+        for thread in ("thread-1", "thread-2"):
+            write_chat(self.sessions / f"{thread}.jsonl", thread_id=thread, cwd=self.repo)
+        self.project.sessions_path.mkdir(parents=True)
+        legacy = self.project.sessions_path / "legacy.md"
+        legacy.write_text("---\ntype: session\n---\n\n# Legacy\n", encoding="utf-8")
+        before = legacy.read_bytes()
+
+        report, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=FakeSummarizer(fail_thread="thread-2"),
+            cache_root=self.cache,
+        )
+
+        self.assertEqual(1, len(report["failed"]))
+        self.assertEqual(before, legacy.read_bytes())
+        self.assertEqual(["legacy.md"], [path.name for path in self.project.sessions_path.glob("*.md")])
+        self.assertFalse(self.project.state_path.exists())
+
+    def test_rebuild_force_regenerates_existing_v2(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
+        first_summarizer = FakeSummarizer()
+        execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=first_summarizer,
+            cache_root=self.cache,
+        )
+        dry, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=None,
+            dry_run=True,
+            cache_root=self.cache,
+        )
+        forced, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=None,
+            force=True,
+            dry_run=True,
+            cache_root=self.cache,
+        )
+
+        self.assertEqual(0, dry["generationCount"])
+        self.assertEqual(1, forced["generationCount"])
+        self.assertEqual(1, len(forced["replacedV2"]))
+        self.assertEqual(64, len(forced["replacedV2"][0]["sha256"]))
+
+    def test_rebuild_dry_run_does_not_save_approved_root(self) -> None:
+        historical = self.root / "old-repo"
+        historical.mkdir()
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=historical)
+        with patch(
+            "tkn_codex_context.session_notes.verify_historical_root",
+            return_value=historical,
+        ):
+            report, _path = execute_rebuild(
+                self.config,
+                self.project,
+                summarizer=None,
+                approve_roots=[historical],
+                dry_run=True,
+                cache_root=self.cache,
+            )
+
+        self.assertEqual(1, report["selectedCount"])
+        self.assertFalse(self.project.state_path.exists())
+
+    def test_rebuild_rejects_future_session_schema(self) -> None:
+        self.project.sessions_path.mkdir(parents=True)
+        (self.project.sessions_path / "future.md").write_text(
+            "---\ntype: session\nschemaVersion: 99\n---\n\n# Session Note\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(Exception, "unsupported session schemaVersion 99"):
+            execute_rebuild(
+                self.config,
+                self.project,
+                summarizer=None,
+                dry_run=True,
+                cache_root=self.cache,
+            )
+
+    def test_saved_historical_root_is_used_by_daily_scan(self) -> None:
+        historical = self.root / "historical"
+        historical.mkdir()
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-old-root", cwd=historical)
+        self.context.mkdir()
+        self.project.state_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "projectId": self.project.project_id,
+                    "approvedHistoricalRoots": [str(historical)],
+                    "rejectedHistoricalRoots": [],
+                    "lastRefreshAt": None,
+                    "sources": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        candidates, _counts = scan_candidates(self.config, [self.project])
+
+        self.assertEqual(["thread-old-root"], [item.thread_id for item in candidates])
+
+    def test_rebuild_preserves_v2_without_source_thread_ids(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
+        self.project.sessions_path.mkdir(parents=True)
+        manual = self.project.sessions_path / "manual-v2.md"
+        manual.write_text(
+            "---\ntype: session\nschemaVersion: 2\nstatus: done\n---\n\n"
+            "# Session Note\n\n## Summary\n\n- Manual.\n\n"
+            "## Key Developments\n\n### Action\n\n- Manual.\n\n"
+            "## Last Known State\n\n- Work State: done — manual.\n"
+            "- Latest User Direction: 追加指示なし。\n",
+            encoding="utf-8",
+        )
+
+        report, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=FakeSummarizer(),
+            cache_root=self.cache,
+        )
+
+        self.assertEqual([], report["failed"])
+        self.assertTrue((self.project.sessions_path / "manual-v2.md").is_file())
+        self.assertEqual(2, len(list(self.project.sessions_path.glob("*.md"))))
+
+    def test_multiple_work_items_render_h3_and_h4_labels(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
+        candidate = scan_candidates(self.config, [self.project])[0][0]
+        data = note_data(candidate)
+        data["workItems"].append(
+            {
+                "title": "Second task",
+                "developments": [
+                    {
+                        "label": "Validation",
+                        "text": "The second task was checked.",
+                        "eventIds": [candidate.events[-1].id],
+                    }
+                ],
+            }
+        )
+
+        text = render_note(candidate, data, {}, [])
+
+        self.assertIn("### WI-01: Requested work", text)
+        self.assertIn("#### Request", text)
+        self.assertIn("### WI-02: Second task", text)
+        self.assertIn("#### Validation", text)
+
+    def test_rebuild_state_write_failure_restores_legacy_sessions(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
+        self.project.sessions_path.mkdir(parents=True)
+        legacy = self.project.sessions_path / "legacy.md"
+        legacy.write_text("---\ntype: session\n---\n\n# Legacy\n", encoding="utf-8")
+        import tkn_codex_context.session_notes as module
+
+        original_write = module.atomic_write_json
+
+        def fail_state(path, value):
+            if path == self.project.state_path:
+                raise OSError("simulated state failure")
+            return original_write(path, value)
+
+        with patch(
+            "tkn_codex_context.session_notes.atomic_write_json",
+            side_effect=fail_state,
+        ):
+            report, _path = execute_rebuild(
+                self.config,
+                self.project,
+                summarizer=FakeSummarizer(),
+                cache_root=self.cache,
+            )
+
+        self.assertEqual(1, len(report["failed"]))
+        self.assertTrue(legacy.is_file())
+        self.assertEqual(["legacy.md"], [path.name for path in self.project.sessions_path.glob("*.md")])
+
+    def test_rebuild_resumes_completed_generation_after_failure(self) -> None:
+        for thread in ("thread-1", "thread-2"):
+            write_chat(self.sessions / f"{thread}.jsonl", thread_id=thread, cwd=self.repo)
+        first = FakeSummarizer(fail_thread="thread-2")
+
+        failed, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=first,
+            cache_root=self.cache,
+        )
+
+        self.assertEqual(1, len(failed["failed"]))
+        self.assertEqual(1, failed["resumeAvailable"])
+        self.assertTrue((self.context / ".session-notes-rebuild-work").is_dir())
+
+        second = FakeSummarizer()
+        resumed, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=second,
+            cache_root=self.cache,
+        )
+
+        self.assertEqual([], resumed["failed"])
+        self.assertEqual(1, resumed["resumedCount"])
+        self.assertEqual(["thread-2"], second.calls)
+        self.assertFalse((self.context / ".session-notes-rebuild-work").exists())
+        self.assertEqual(2, len(list(self.project.sessions_path.glob("*.md"))))
+
+    def test_rebuild_preserves_state_for_missing_source_thread(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-new", cwd=self.repo)
+        self.context.mkdir()
+        self.project.state_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": 2,
+                    "projectId": self.project.project_id,
+                    "approvedHistoricalRoots": [],
+                    "rejectedHistoricalRoots": [],
+                    "lastRefreshAt": None,
+                    "sources": {
+                        "windows": {
+                            "sourceRoot": str(self.sessions),
+                            "lastRefreshAt": None,
+                            "threads": {
+                                "thread-missing": {
+                                    "fingerprint": "old",
+                                    "sessionNotes": ["sessions/old.md"],
+                                }
+                            },
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        report, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=FakeSummarizer(),
+            cache_root=self.cache,
+        )
+
+        self.assertEqual([], report["failed"])
+        state = json.loads(self.project.state_path.read_text(encoding="utf-8"))
+        self.assertIn("thread-missing", state["sources"]["windows"]["threads"])
+        self.assertIn("thread-new", state["sources"]["windows"]["threads"])
+
+    def test_backup_cleanup_failure_is_warning_after_successful_commit(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
+        self.project.sessions_path.mkdir(parents=True)
+        (self.project.sessions_path / "legacy.md").write_text(
+            "---\ntype: session\n---\n\n# Legacy\n",
+            encoding="utf-8",
+        )
+        original_rmtree = shutil.rmtree
+
+        def fail_backup_cleanup(path, *args, **kwargs):
+            if Path(path).name.startswith(".sessions-rebuild-backup-"):
+                raise OSError("simulated backup cleanup failure")
+            return original_rmtree(path, *args, **kwargs)
+
+        with patch(
+            "tkn_codex_context.session_notes.shutil.rmtree",
+            side_effect=fail_backup_cleanup,
+        ):
+            report, _path = execute_rebuild(
+                self.config,
+                self.project,
+                summarizer=FakeSummarizer(),
+                cache_root=self.cache,
+            )
+
+        self.assertEqual([], report["failed"])
+        self.assertEqual(1, len(report["warnings"]))
+        self.assertEqual(1, len(list(self.project.sessions_path.glob("*.md"))))
+        for backup in self.context.glob(".sessions-rebuild-backup-*"):
+            original_rmtree(backup)
+
+    def test_generated_note_records_generator_and_validation_metadata(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
+        report, _path = execute_rebuild(
+            self.config,
+            self.project,
+            summarizer=FakeSummarizer(),
+            cache_root=self.cache,
+        )
+
+        self.assertEqual([], report["failed"])
+        note = next(self.project.sessions_path.glob("*.md")).read_text(encoding="utf-8")
+        self.assertIn('generatorModel: "gpt-5.6-sol"', note)
+        self.assertIn('generatorReasoningEffort: "high"', note)
+        self.assertIn("generatorPromptVersion: 2", note)
+        self.assertIn("rendererVersion: 2", note)
+        self.assertIn("generatedAt:", note)
+        self.assertIn('fileSlug: "automated-session"', note)
+        self.assertIn('automatedValidation: "passed"', note)
+        state = json.loads(self.project.state_path.read_text(encoding="utf-8"))
+        thread = state["sources"]["windows"]["threads"]["thread-1"]
+        self.assertTrue(thread["generationFingerprint"])
+        self.assertTrue(thread["noteHash"])
+
+    def test_done_note_rejects_unresolved_items(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
+        candidate = scan_candidates(self.config, [self.project])[0][0]
+        data = note_data(candidate)
+        data["lastKnownState"]["unresolved"] = ["unfinished request"]
+
+        with self.assertRaisesRegex(Exception, "done work cannot contain unresolved"):
+            validate_note_data(data, {event.id for event in candidate.events})
+
+    def test_note_validation_rejects_avoidable_english_prose(self) -> None:
+        write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
+        candidate = scan_candidates(self.config, [self.project])[0][0]
+        data = note_data(candidate)
+        data["summaryItems"][0]["text"] = "Merged from supplied events."
+
+        with self.assertRaisesRegex(Exception, "avoidable English prose"):
+            validate_note_data(data, {event.id for event in candidate.events})
 
 
 if __name__ == "__main__":

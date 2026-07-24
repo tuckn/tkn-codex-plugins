@@ -15,6 +15,7 @@ from .session_notes import (
     default_config_path,
     default_registry_path,
     execute_pipeline,
+    execute_rebuild,
     load_active_projects,
     load_config,
     make_config,
@@ -60,11 +61,52 @@ def build_parser() -> argparse.ArgumentParser:
     selector.add_argument("--all", action="store_true")
     backfill.add_argument("--thread-id", action="append", default=[])
     backfill.add_argument("--limit", type=int)
+
+    rebuild = actions.add_parser("rebuild")
+    add_common_run_options(rebuild)
+    rebuild.add_argument("--project-id", required=True)
+    rebuild.add_argument("--approve-root", type=path_value, action="append", default=[])
+    rebuild.add_argument("--force", action="store_true")
     return parser
 
 
 def print_json(value: object) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2))
+
+
+def print_progress(event: dict[str, object]) -> None:
+    event_type = str(event.get("type") or "")
+    if event_type == "thread-start":
+        print(
+            f"[{event['index']}/{event['total']}] START {event['threadId']}",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif event_type == "thread-complete":
+        print(
+            f"[{event['index']}/{event['total']}] DONE "
+            f"{event['durationSeconds']}s",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif event_type == "thread-resumed":
+        print(
+            f"[{event['index']}/{event['total']}] RESUME",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif event_type == "thread-failed":
+        print(
+            f"[{event['index']}/{event['total']}] FAILED {event['error']}",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif event_type == "chunk-start":
+        print(
+            f"  CHUNK {event['chunk']}/{event['chunkCount']}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def run_configure(args: argparse.Namespace) -> int:
@@ -102,7 +144,7 @@ def run_pipeline(args: argparse.Namespace, *, backfill: bool) -> int:
     summarizer = None
     if not args.dry_run:
         config = replace(config, codex_bin=resolve_codex_bin(config.codex_bin))
-        summarizer = CodexSummarizer(config)
+        summarizer = CodexSummarizer(config, observer=print_progress)
     report, report_path = execute_pipeline(
         config,
         projects,
@@ -113,9 +155,34 @@ def run_pipeline(args: argparse.Namespace, *, backfill: bool) -> int:
         thread_ids=getattr(args, "thread_id", ()),
         limit=getattr(args, "limit", None),
         cache_root=args.cache_root,
+        progress=print_progress,
     )
     print_json({"report": str(report_path), **report})
     return 1 if report["failed"] else 0
+
+
+def run_rebuild(args: argparse.Namespace) -> int:
+    config = load_config(args.config)
+    projects = load_active_projects(args.registry)
+    matches = [item for item in projects if item.project_id == args.project_id]
+    if len(matches) != 1:
+        raise PipelineError(f"unknown or inactive projectId: {args.project_id}")
+    summarizer = None
+    if not args.dry_run:
+        config = replace(config, codex_bin=resolve_codex_bin(config.codex_bin))
+        summarizer = CodexSummarizer(config, observer=print_progress)
+    report, report_path = execute_rebuild(
+        config,
+        matches[0],
+        summarizer=summarizer,
+        approve_roots=args.approve_root,
+        force=args.force,
+        dry_run=args.dry_run,
+        cache_root=args.cache_root,
+        progress=print_progress,
+    )
+    print_json({"report": str(report_path), **report})
+    return 1 if report["failed"] or report["deferred"] else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -128,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
             return run_pipeline(args, backfill=False)
         if args.session_notes_command == "backfill":
             return run_pipeline(args, backfill=True)
+        if args.session_notes_command == "rebuild":
+            return run_rebuild(args)
         raise PipelineError(f"unsupported command: {args.session_notes_command}")
     except PipelineError as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -10,8 +10,10 @@ import subprocess
 import tempfile
 import time
 import uuid
+from copy import deepcopy
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, Callable, Iterable, Protocol, Sequence
 
@@ -51,15 +53,29 @@ DEFAULT_RUNTIME_MINUTES = 230
 DEFAULT_MODEL_TIMEOUT_SECONDS = 1800
 DEFAULT_CHUNK_CHARACTERS = 120_000
 MAX_EVENT_TEXT_CHARACTERS = 8_000
+GENERATOR_PROMPT_VERSION = 2
+RENDERER_VERSION = 2
+REBUILD_WORK_SCHEMA_VERSION = 1
+IN_FLIGHT_GRACE_MINUTES = 9
+MAX_SUMMARY_ITEMS = 5
+MAX_WORK_ITEMS = 5
+MAX_DEVELOPMENTS_PER_WORK_ITEM = 6
+MAX_EVIDENCE_ITEMS = 8
+MAX_SOURCE_LIMITATIONS = 5
+MAX_NOTE_NARRATIVE_CHARACTERS = 9_000
+AVOIDABLE_ENGLISH_PHRASES = {
+    "actual execution",
+    "supplied events",
+}
 ALLOWED_STATUS = {"in-progress", "blocked", "waiting-for-user", "done"}
 ALLOWED_LABELS = {
     "Request",
-    "Clarification",
-    "Correction",
+    "Clarification / Correction",
+    "Proposal",
     "Action",
-    "Result",
-    "Decision",
+    "Reported Result",
     "Validation",
+    "Explicit Decision",
 }
 
 
@@ -90,6 +106,7 @@ class Project:
     title: str
     current_root: Path
     context_path: Path
+    historical_roots: tuple[Path, ...] = ()
 
     @property
     def sessions_path(self) -> Path:
@@ -389,6 +406,12 @@ def update_refresh_state(
     processed_at = now_iso()
     source["threads"][candidate.thread_id] = {
         "fingerprint": candidate.fingerprint,
+        "generationFingerprint": generation_fingerprint(config, candidate),
+        "generatorModel": config.model,
+        "generatorReasoningEffort": config.reasoning_effort,
+        "generatorPromptVersion": GENERATOR_PROMPT_VERSION,
+        "rendererVersion": RENDERER_VERSION,
+        "noteHash": sha256(note_path.read_bytes()).hexdigest(),
         "sourceRefs": [candidate.source_ref],
         "sessionNotes": [relative_note],
         "decisionIds": [],
@@ -400,12 +423,29 @@ def update_refresh_state(
 
 
 def project_roots(project: Project) -> tuple[str, ...]:
-    values = [str(project.current_root)]
-    try:
-        values.append(str(project.current_root.resolve(strict=False)))
-    except OSError:
-        pass
+    values: list[str] = []
+    for root in (project.current_root, *project.historical_roots):
+        values.append(str(root))
+        try:
+            values.append(str(root.resolve(strict=False)))
+        except OSError:
+            pass
     return tuple(dict.fromkeys(values))
+
+
+def project_with_state_roots(
+    project: Project,
+    state: dict[str, Any],
+) -> Project:
+    raw_roots = state.get("approvedHistoricalRoots", [])
+    if not isinstance(raw_roots, list):
+        raise PipelineError(f"approvedHistoricalRoots must be an array: {project.state_path}")
+    roots = tuple(
+        Path(str(value)).expanduser().absolute()
+        for value in raw_roots
+        if str(value).strip()
+    )
+    return replace(project, historical_roots=roots)
 
 
 def event_matches_project(event: ChatEvent, project: Project) -> bool:
@@ -474,6 +514,7 @@ def scan_candidates(
     backfill: bool = False,
     project_ids: Sequence[str] = (),
     thread_ids: Sequence[str] = (),
+    ignore_fingerprints: bool = False,
 ) -> tuple[list[Candidate], dict[str, int]]:
     selected_projects = [
         project for project in projects if not project_ids or project.project_id in set(project_ids)
@@ -481,9 +522,21 @@ def scan_candidates(
     missing = set(project_ids) - {project.project_id for project in selected_projects}
     if missing:
         raise PipelineError(f"unknown or inactive projectId: {', '.join(sorted(missing))}")
-    groups: dict[str, list[Candidate]] = {project.project_id: [] for project in selected_projects}
-    counts = {"files": 0, "eligible": 0, "unchanged": 0, "ignoredFiles": 0}
     states = {project.project_id: load_refresh_state(project, config) for project in selected_projects}
+    selected_projects = [
+        project_with_state_roots(project, states[project.project_id])
+        for project in selected_projects
+    ]
+    groups: dict[str, list[Candidate]] = {project.project_id: [] for project in selected_projects}
+    counts = {
+        "files": 0,
+        "eligible": 0,
+        "unchanged": 0,
+        "staleGenerator": 0,
+        "ignoredFiles": 0,
+        "excludedApprovalOrInternal": 0,
+        "excludedWithoutUserMessage": 0,
+    }
     thread_filter = set(thread_ids)
     for path in sorted(config.sessions_root.rglob("*.jsonl")):
         counts["files"] += 1
@@ -498,13 +551,16 @@ def scan_candidates(
             counts["ignoredFiles"] += 1
             continue
         session = read_session(path)
-        if (
-            not session
-            or is_approval_review(session)
-            or is_known_internal_session(session)
-            or not has_clean_user_message(session)
-        ):
+        if not session:
             counts["ignoredFiles"] += 1
+            continue
+        if is_approval_review(session) or is_known_internal_session(session):
+            counts["ignoredFiles"] += 1
+            counts["excludedApprovalOrInternal"] += 1
+            continue
+        if not has_clean_user_message(session):
+            counts["ignoredFiles"] += 1
+            counts["excludedWithoutUserMessage"] += 1
             continue
         all_events = read_session_events(path)
         matched_file = False
@@ -531,8 +587,12 @@ def scan_candidates(
             matched_file = True
             source = states[project.project_id]["sources"][config.source_id]
             prior = source["threads"].get(candidate.thread_id, {})
-            if prior.get("fingerprint") == candidate.fingerprint:
+            if not ignore_fingerprints and prior.get("fingerprint") == candidate.fingerprint:
                 counts["unchanged"] += 1
+                if prior.get("generationFingerprint") != generation_fingerprint(
+                    config, candidate
+                ):
+                    counts["staleGenerator"] += 1
                 continue
             groups[project.project_id].append(candidate)
             counts["eligible"] += 1
@@ -593,20 +653,70 @@ NOTE_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "properties": {
         "title": {"type": "string"},
+        "fileSlug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "minLength": 3,
+            "maxLength": 72,
+        },
         "description": {"type": "string"},
-        "summary": {"type": "string"},
-        "summaryEventIds": {"type": "array", "items": {"type": "string"}},
-        "keyDevelopments": {
+        "summaryItems": {
             "type": "array",
+            "minItems": 1,
+            "maxItems": MAX_SUMMARY_ITEMS,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "label": {"type": "string", "enum": sorted(ALLOWED_LABELS)},
                     "text": {"type": "string"},
                     "eventIds": {"type": "array", "items": {"type": "string"}},
                 },
-                "required": ["label", "text", "eventIds"],
+                "required": ["text", "eventIds"],
+            },
+        },
+        "workItems": {
+            "type": "array",
+            "maxItems": MAX_WORK_ITEMS,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "title": {"type": "string"},
+                    "developments": {
+                        "type": "array",
+                        "maxItems": MAX_DEVELOPMENTS_PER_WORK_ITEM,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "label": {
+                                    "type": "string",
+                                    "enum": sorted(ALLOWED_LABELS),
+                                },
+                                "text": {"type": "string"},
+                                "eventIds": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            },
+                            "required": ["label", "text", "eventIds"],
+                        },
+                    },
+                },
+                "required": ["title", "developments"],
+            },
+        },
+        "evidence": {
+            "type": "array",
+            "maxItems": MAX_EVIDENCE_ITEMS,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "text": {"type": "string"},
+                    "eventIds": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["text", "eventIds"],
             },
         },
         "lastKnownState": {
@@ -617,6 +727,7 @@ NOTE_SCHEMA: dict[str, Any] = {
                 "detail": {"type": "string"},
                 "latestUserDirection": {"type": "string"},
                 "unresolved": {"type": "array", "items": {"type": "string"}},
+                "unverified": {"type": "array", "items": {"type": "string"}},
                 "continuationPoint": {"type": "string"},
                 "eventIds": {"type": "array", "items": {"type": "string"}},
             },
@@ -625,18 +736,24 @@ NOTE_SCHEMA: dict[str, Any] = {
                 "detail",
                 "latestUserDirection",
                 "unresolved",
+                "unverified",
                 "continuationPoint",
                 "eventIds",
             ],
         },
-        "sourceLimitations": {"type": "array", "items": {"type": "string"}},
+        "sourceLimitations": {
+            "type": "array",
+            "maxItems": MAX_SOURCE_LIMITATIONS,
+            "items": {"type": "string"},
+        },
     },
     "required": [
         "title",
+        "fileSlug",
         "description",
-        "summary",
-        "summaryEventIds",
-        "keyDevelopments",
+        "summaryItems",
+        "workItems",
+        "evidence",
         "lastKnownState",
         "sourceLimitations",
     ],
@@ -649,22 +766,80 @@ def validate_note_data(value: Any, allowed_event_ids: set[str]) -> dict[str, Any
     required = set(NOTE_SCHEMA["required"])
     if not required.issubset(value):
         raise PipelineError(f"Codex output is missing fields: {', '.join(sorted(required - set(value)))}")
-    if not all(isinstance(value.get(key), str) for key in ("title", "description", "summary")):
-        raise PipelineError("Codex output title, description, and summary must be strings")
-    developments = value.get("keyDevelopments")
+    if not all(isinstance(value.get(key), str) for key in ("title", "fileSlug", "description")):
+        raise PipelineError("Codex output title, fileSlug, and description must be strings")
+    if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", value["fileSlug"]):
+        raise PipelineError("Codex output has invalid fileSlug")
+    summary_items = value.get("summaryItems")
+    work_items = value.get("workItems")
     last_state = value.get("lastKnownState")
-    if not isinstance(developments, list) or not isinstance(last_state, dict):
-        raise PipelineError("Codex output has invalid keyDevelopments or lastKnownState")
+    if (
+        not isinstance(summary_items, list)
+        or not 1 <= len(summary_items) <= MAX_SUMMARY_ITEMS
+        or not isinstance(work_items, list)
+        or not isinstance(last_state, dict)
+    ):
+        raise PipelineError("Codex output has invalid summaryItems, workItems, or lastKnownState")
+    if len(work_items) > MAX_WORK_ITEMS:
+        raise PipelineError("Codex output has too many work items")
     if last_state.get("workState") not in ALLOWED_STATUS:
         raise PipelineError("Codex output has invalid workState")
-    cited: list[str] = list(value.get("summaryEventIds") or []) + list(last_state.get("eventIds") or [])
-    for item in developments:
-        if not isinstance(item, dict) or item.get("label") not in ALLOWED_LABELS:
-            raise PipelineError("Codex output has an invalid key development")
+    if not isinstance(last_state.get("unresolved"), list) or not isinstance(
+        last_state.get("unverified"), list
+    ):
+        raise PipelineError("Codex output has invalid unresolved or unverified items")
+    if last_state["workState"] == "done" and (
+        last_state["unresolved"] or str(last_state.get("continuationPoint") or "").strip()
+    ):
+        raise PipelineError(
+            "done work cannot contain unresolved items or a continuation point; "
+            "use unverified for checks outside the completed request"
+        )
+    cited: list[str] = list(last_state.get("eventIds") or [])
+    for item in summary_items:
+        if not isinstance(item, dict) or not str(item.get("text") or "").strip():
+            raise PipelineError("Codex output has an invalid summary item")
+        if len(str(item["text"])) > 300:
+            raise PipelineError("Codex output summary item is too long")
         cited.extend(item.get("eventIds") or [])
+    for work_item in work_items:
+        if not isinstance(work_item, dict) or not isinstance(work_item.get("developments"), list):
+            raise PipelineError("Codex output has an invalid work item")
+        if len(work_item["developments"]) > MAX_DEVELOPMENTS_PER_WORK_ITEM:
+            raise PipelineError("Codex output has too many developments in a work item")
+        for item in work_item["developments"]:
+            if not isinstance(item, dict) or item.get("label") not in ALLOWED_LABELS:
+                raise PipelineError("Codex output has an invalid key development")
+            if not str(item.get("text") or "").strip() or len(str(item["text"])) > 420:
+                raise PipelineError("Codex output has an empty or overly long development")
+            cited.extend(item.get("eventIds") or [])
+    evidence = value.get("evidence")
+    if not isinstance(evidence, list):
+        raise PipelineError("Codex output has invalid evidence")
+    for item in evidence:
+        if not isinstance(item, dict):
+            raise PipelineError("Codex output has invalid evidence")
+        if not str(item.get("text") or "").strip() or len(str(item["text"])) > 360:
+            raise PipelineError("Codex output has an empty or overly long evidence item")
+        cited.extend(item.get("eventIds") or [])
+    if len(evidence) > MAX_EVIDENCE_ITEMS:
+        raise PipelineError("Codex output has too many evidence items")
+    source_limitations = value.get("sourceLimitations")
+    if not isinstance(source_limitations, list) or len(source_limitations) > MAX_SOURCE_LIMITATIONS:
+        raise PipelineError("Codex output has invalid sourceLimitations")
     invalid = {str(item) for item in cited if str(item) not in allowed_event_ids}
     if invalid:
         raise PipelineError(f"Codex output cited unknown event ids: {', '.join(sorted(invalid))}")
+    narrative = json.dumps(value, ensure_ascii=False)
+    if len(narrative) > MAX_NOTE_NARRATIVE_CHARACTERS:
+        raise PipelineError("Codex output exceeds the session-note narrative size limit")
+    avoidable = sorted(
+        phrase for phrase in AVOIDABLE_ENGLISH_PHRASES if phrase in narrative.casefold()
+    )
+    if avoidable:
+        raise PipelineError(
+            "Codex output contains avoidable English prose: " + ", ".join(avoidable)
+        )
     return value
 
 
@@ -675,10 +850,21 @@ class CodexSummarizer:
         *,
         chunk_characters: int = DEFAULT_CHUNK_CHARACTERS,
         sleeper: Callable[[float], None] = time.sleep,
+        observer: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.config = config
         self.chunk_characters = chunk_characters
         self.sleeper = sleeper
+        self.observer = observer
+        self.deadline: datetime | None = None
+        self.last_metrics: dict[str, int] = {}
+
+    def set_deadline(self, deadline: datetime) -> None:
+        self.deadline = deadline
+
+    def _emit(self, event: dict[str, Any]) -> None:
+        if self.observer:
+            self.observer(event)
 
     def _invoke(self, prompt: str) -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="tkn-session-note-") as directory:
@@ -708,6 +894,26 @@ class CodexSummarizer:
             ]
             last_error = ""
             for attempt in range(3):
+                timeout = self.config.model_timeout_seconds
+                if self.deadline is not None:
+                    remaining = int((self.deadline - now_local()).total_seconds())
+                    if remaining <= 0:
+                        raise PartialPipelineError(
+                            "rebuild deadline reached during model generation"
+                        )
+                    timeout = min(timeout, remaining)
+                self.last_metrics["modelCalls"] = self.last_metrics.get("modelCalls", 0) + 1
+                if attempt:
+                    self.last_metrics["transportRetries"] = (
+                        self.last_metrics.get("transportRetries", 0) + 1
+                    )
+                self._emit(
+                    {
+                        "type": "model-attempt",
+                        "attempt": attempt + 1,
+                        "timeoutSeconds": timeout,
+                    }
+                )
                 try:
                     completed = subprocess.run(
                         command,
@@ -717,7 +923,7 @@ class CodexSummarizer:
                         text=True,
                         encoding="utf-8",
                         errors="replace",
-                        timeout=self.config.model_timeout_seconds,
+                        timeout=timeout,
                         check=False,
                     )
                 except subprocess.TimeoutExpired as exc:
@@ -739,18 +945,72 @@ class CodexSummarizer:
                     self.sleeper(2**attempt)
             raise PipelineError(last_error or "Codex generation failed")
 
+    def _validated_invoke(
+        self,
+        prompt: str,
+        allowed_event_ids: set[str],
+    ) -> dict[str, Any]:
+        current_prompt = prompt
+        for semantic_attempt in range(2):
+            value = self._invoke(current_prompt)
+            try:
+                return validate_note_data(value, allowed_event_ids)
+            except PipelineError as exc:
+                if semantic_attempt:
+                    raise
+                self.last_metrics["semanticRetries"] = (
+                    self.last_metrics.get("semanticRetries", 0) + 1
+                )
+                current_prompt = json.dumps(
+                    {
+                        "instruction": (
+                            "Correct the supplied draft to satisfy the validation error. "
+                            "Keep only source-backed facts, shorten rather than expand, "
+                            "write natural Japanese except for literal identifiers, and "
+                            "do not add new event IDs."
+                        ),
+                        "validationError": str(exc),
+                        "draft": value,
+                    },
+                    ensure_ascii=False,
+                )
+
     def generate(self, candidate: Candidate) -> dict[str, Any]:
+        self.last_metrics = {
+            "chunkCount": 0,
+            "modelCalls": 0,
+            "transportRetries": 0,
+            "semanticRetries": 0,
+        }
         prepared = prepare_events(candidate.events)
         allowed_ids = {event.id for event in prepared}
         chunks = chunk_events(prepared, self.chunk_characters)
+        self.last_metrics["chunkCount"] = len(chunks)
         partials: list[dict[str, Any]] = []
         for index, chunk in enumerate(chunks, 1):
+            self._emit(
+                {
+                    "type": "chunk-start",
+                    "threadId": candidate.thread_id,
+                    "chunk": index,
+                    "chunkCount": len(chunks),
+                }
+            )
             prompt = json.dumps(
                 {
                     "instruction": (
-                        "Create a source-near factual digest from only the supplied events. "
+                        "Create a concise source-near factual digest from only the supplied events. "
                         "Do not infer goals, decisions, results, or next steps that are absent. "
-                        "Preserve the user's language. Cite eventIds for every material fact. "
+                        "Write natural Japanese except for literal headings, paths, commands, "
+                        "identifiers, and product names. Avoid unnecessary English prose. "
+                        "Use short independent summary bullets and cite eventIds for every material fact. "
+                        "Keep only facts needed to understand the request, material changes, validation, "
+                        "and last state; omit repetitive command-by-command chronology. "
+                        "Use one work item for a coherent task and multiple work items only for "
+                        "independent tasks in the same chat. Provide a short descriptive ASCII fileSlug. "
+                        "Use unresolved only for an unfinished explicit user request. Put checks outside "
+                        "the completed request in unverified; done must have no unresolved or continuation. "
+                        "Use the exact permitted labels. "
                         "Use an empty array or empty string when the source does not establish a field."
                     ),
                     "threadId": candidate.thread_id,
@@ -760,22 +1020,24 @@ class CodexSummarizer:
                 },
                 ensure_ascii=False,
             )
-            partials.append(validate_note_data(self._invoke(prompt), allowed_ids))
+            partials.append(self._validated_invoke(prompt, allowed_ids))
         if len(partials) == 1:
             return partials[0]
         reduction_prompt = json.dumps(
             {
                 "instruction": (
-                    "Merge these ordered partial factual digests into one session note. "
-                    "Remove duplication, preserve corrections over superseded statements, retain eventIds, "
-                    "and do not add facts or recommendations."
+                    "Merge these ordered partial factual digests into one compact session note. "
+                    "Write natural Japanese except for literal identifiers. Remove duplication and "
+                    "command-by-command detail, preserve corrections over superseded statements, retain "
+                    "eventIds, combine matching work items, respect every item limit, and do not add facts "
+                    "or recommendations. Use unresolved only for unfinished explicit user requests."
                 ),
                 "threadId": candidate.thread_id,
                 "partials": partials,
             },
             ensure_ascii=False,
         )
-        return validate_note_data(self._invoke(reduction_prompt), allowed_ids)
+        return self._validated_invoke(reduction_prompt, allowed_ids)
 
 
 def source_timestamp(value: str) -> datetime:
@@ -783,6 +1045,36 @@ def source_timestamp(value: str) -> datetime:
         return parse_datetime(value).astimezone()
     except PipelineError:
         return now_local()
+
+
+def generator_fingerprint(config: PipelineConfig) -> str:
+    value = {
+        "model": config.model,
+        "reasoningEffort": config.reasoning_effort,
+        "promptVersion": GENERATOR_PROMPT_VERSION,
+        "rendererVersion": RENDERER_VERSION,
+    }
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    return sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def generation_fingerprint(config: PipelineConfig, candidate: Candidate) -> str:
+    return sha256(
+        f"{candidate.fingerprint}:{generator_fingerprint(config)}".encode("utf-8")
+    ).hexdigest()
+
+
+def event_citation(event_ids: Sequence[str]) -> str:
+    values = [str(value) for value in event_ids if str(value)]
+    return f" 〔{', '.join(values)}〕" if values else ""
+
+
+def file_slug_from_note_path(candidate: Candidate, note_path: Path) -> str:
+    session_id = source_timestamp(candidate.started_at).strftime("%Y%m%dT%H%M%S%z")
+    prefix = f"{session_id}-"
+    if not note_path.stem.startswith(prefix):
+        raise PipelineError(f"session note filename has an invalid timestamp prefix: {note_path}")
+    return note_path.stem[len(prefix) :]
 
 
 def find_note_matches(project: Project, thread_id: str) -> list[Path]:
@@ -799,8 +1091,15 @@ def find_note_matches(project: Project, thread_id: str) -> list[Path]:
     return matches
 
 
-def choose_note_path(candidate: Candidate, title: str) -> tuple[Path, dict[str, str], list[str]]:
-    matches = find_note_matches(candidate.project, candidate.thread_id)
+def choose_note_path(
+    candidate: Candidate,
+    title: str,
+    *,
+    sessions_path: Path | None = None,
+    match_existing: bool = True,
+) -> tuple[Path, dict[str, str], list[str]]:
+    target = sessions_path or candidate.project.sessions_path
+    matches = find_note_matches(candidate.project, candidate.thread_id) if match_existing else []
     if len(matches) > 1:
         raise PipelineError(
             f"multiple session notes match thread {candidate.thread_id}: "
@@ -816,7 +1115,8 @@ def choose_note_path(candidate: Candidate, title: str) -> tuple[Path, dict[str, 
         )
     started = source_timestamp(candidate.started_at)
     session_id = started.strftime("%Y%m%dT%H%M%S%z")
-    base = candidate.project.sessions_path / f"{session_id}-{slugify(title)}.md"
+    file_slug = title if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", title) else slugify(title)
+    base = target / f"{session_id}-{file_slug}.md"
     if not base.exists():
         return base, {}, []
     suffix = re.sub(r"[^A-Za-z0-9]", "", candidate.thread_id)[:8] or "thread"
@@ -834,54 +1134,95 @@ def render_note(
     session_id = existing.get("sessionId") or started.strftime("%Y%m%dT%H%M%S%z")
     distillation_status = "partial" if existing_distilled_to else "pending"
     last_state = data["lastKnownState"]
+    rendered_at = now_iso()
     fields: list[tuple[str, str | int | list[str]]] = [
         ("type", "session"),
         ("schemaVersion", SESSION_SCHEMA_VERSION),
         ("title", str(data["title"]).strip() or "Codex session"),
         ("description", str(data["description"]).strip()),
         ("generator", "Codex"),
+        ("generatorModel", data.get("_generatorModel", DEFAULT_MODEL)),
+        (
+            "generatorReasoningEffort",
+            data.get("_generatorReasoningEffort", DEFAULT_REASONING_EFFORT),
+        ),
+        ("generatorPromptVersion", GENERATOR_PROMPT_VERSION),
+        ("rendererVersion", RENDERER_VERSION),
+        ("generatedAt", rendered_at),
+        ("fileSlug", str(data["fileSlug"])),
         ("status", str(last_state["workState"])),
         ("reviewStatus", "unreviewed"),
+        ("automatedValidation", "passed"),
         ("distillationStatus", distillation_status),
         ("distilledTo", existing_distilled_to),
         ("date", created),
-        ("updated", now_iso()),
+        ("updated", rendered_at),
         ("sessionId", session_id),
         ("sourceType", "codexChat"),
         ("sourceThreadIds", [candidate.thread_id]),
         ("sourceRefs", [candidate.source_ref]),
+        ("sourceFingerprint", candidate.fingerprint),
     ]
-    lines = [frontmatter(fields), "", f"# {str(data['title']).strip() or 'Codex session'}", ""]
-    summary_ids = ", ".join(str(value) for value in data.get("summaryEventIds", []))
-    lines.extend(["## Summary", "", str(data["summary"]).strip() or "確認できる記録なし。"])
-    if summary_ids:
-        lines.extend(["", f"Source events: `{summary_ids}`"])
+    lines = [frontmatter(fields), "", "# Session Note", ""]
+    lines.extend(["## Summary", ""])
+    for item in data.get("summaryItems", []):
+        lines.append(
+            f"- {str(item['text']).strip()}{event_citation(item.get('eventIds', []))}"
+        )
     lines.extend(["", "## Key Developments", ""])
-    developments = data.get("keyDevelopments") or []
-    if not developments:
+    work_items = [
+        item for item in data.get("workItems", []) if item.get("developments")
+    ]
+    if not work_items:
         lines.append("- 確認できる記録なし。")
-    for item in developments:
-        event_ids = ", ".join(str(value) for value in item.get("eventIds", []))
-        citation = f" Source events: `{event_ids}`" if event_ids else ""
-        lines.append(f"- {item['label']}: {str(item['text']).strip()}{citation}")
+    for work_index, work_item in enumerate(work_items, 1):
+        multiple = len(work_items) > 1
+        if multiple:
+            title = str(work_item.get("title") or f"Work item {work_index}").strip()
+            lines.extend([f"### WI-{work_index:02d}: {title}", ""])
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for development in work_item["developments"]:
+            grouped.setdefault(str(development["label"]), []).append(development)
+        for label, developments in grouped.items():
+            heading = "####" if multiple else "###"
+            lines.extend([f"{heading} {label}", ""])
+            for item in developments:
+                lines.append(
+                    f"- {str(item['text']).strip()}"
+                    f"{event_citation(item.get('eventIds', []))}"
+                )
+            lines.append("")
+        while lines and not lines[-1]:
+            lines.pop()
     lines.extend(
         [
             "",
             "## Last Known State",
             "",
-            f"- Work State: {last_state['workState']} — {str(last_state['detail']).strip()}",
+            f"- Work State: {last_state['workState']} — "
+            f"{str(last_state['detail']).strip()}"
+            f"{event_citation(last_state.get('eventIds', []))}",
             "- Latest User Direction: "
             + (str(last_state["latestUserDirection"]).strip() or "追加指示なし。"),
         ]
     )
     for unresolved in last_state.get("unresolved", []):
         lines.append(f"- Unresolved: {str(unresolved).strip()}")
+    for unverified in last_state.get("unverified", []):
+        lines.append(f"- Unverified: {str(unverified).strip()}")
     continuation = str(last_state.get("continuationPoint") or "").strip()
     if continuation:
         lines.append(f"- Continuation Point: {continuation}")
-    state_ids = ", ".join(str(value) for value in last_state.get("eventIds", []))
-    if state_ids:
-        lines.append(f"- Source Events: `{state_ids}`")
+    evidence = [
+        item for item in data.get("evidence", []) if str(item.get("text") or "").strip()
+    ]
+    if evidence:
+        lines.extend(["", "## Evidence", ""])
+        for item in evidence:
+            lines.append(
+                f"- {str(item['text']).strip()}"
+                f"{event_citation(item.get('eventIds', []))}"
+            )
     limitations = [str(value).strip() for value in data.get("sourceLimitations", []) if str(value).strip()]
     if limitations:
         lines.extend(["", "## Source Notes", ""])
@@ -916,7 +1257,12 @@ def write_candidate_note(
     allowed_ids = {event.id for event in candidate.events}
     validate_note_data(data, allowed_ids)
     revalidate_candidate(candidate, config)
-    note_path, existing, existing_distilled_to = choose_note_path(candidate, str(data["title"]))
+    note_path, existing, existing_distilled_to = choose_note_path(
+        candidate, str(data["fileSlug"])
+    )
+    data["fileSlug"] = file_slug_from_note_path(candidate, note_path)
+    data["_generatorModel"] = config.model
+    data["_generatorReasoningEffort"] = config.reasoning_effort
     rendered = render_note(candidate, data, existing, existing_distilled_to)
     atomic_write_text(note_path, rendered)
     update_refresh_state(candidate.project, config, candidate, note_path)
@@ -930,6 +1276,748 @@ def write_run_report(cache_root: Path, report: dict[str, Any]) -> Path:
     return path
 
 
+def normalize_git_remote(value: str) -> str:
+    remote = value.strip().replace("\\", "/")
+    if remote.startswith("git@") and ":" in remote:
+        host, path = remote[4:].split(":", 1)
+        remote = f"https://{host}/{path}"
+    remote = re.sub(r"^ssh://git@", "https://", remote, flags=re.IGNORECASE)
+    remote = remote.rstrip("/")
+    if remote.casefold().endswith(".git"):
+        remote = remote[:-4]
+    return remote.casefold()
+
+
+def git_remote(root: Path) -> str:
+    if not root.is_dir():
+        raise PipelineError(f"project root not found: {root}")
+    completed = subprocess.run(
+        ["git", "-C", str(root), "config", "--get", "remote.origin.url"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    remote = normalize_git_remote(completed.stdout)
+    if completed.returncode or not remote:
+        raise PipelineError(f"cannot resolve Git origin for project root: {root}")
+    return remote
+
+
+def verify_historical_root(project: Project, historical_root: Path) -> Path:
+    root = historical_root.expanduser().absolute()
+    if normalize_path_text(str(root)) == normalize_path_text(str(project.current_root)):
+        raise PipelineError(f"historical root is the current project root: {root}")
+    if git_remote(project.current_root) != git_remote(root):
+        raise PipelineError(
+            f"historical root does not have the same Git origin as the current project: {root}"
+        )
+    return root
+
+
+def scan_rebuild_candidates(
+    config: PipelineConfig,
+    project: Project,
+) -> tuple[list[Candidate], dict[str, int]]:
+    candidates: list[Candidate] = []
+    counts = {
+        "files": 0,
+        "matchedProject": 0,
+        "eligible": 0,
+        "excludedApprovalOrInternal": 0,
+        "excludedWithoutUserMessage": 0,
+        "unmatchedProject": 0,
+    }
+    for path in sorted(config.sessions_root.rglob("*.jsonl")):
+        counts["files"] += 1
+        session = read_session(path)
+        if not session:
+            counts["unmatchedProject"] += 1
+            continue
+        all_events = read_session_events(path)
+        project_events = tuple(
+            event for event in all_events if event_matches_project(event, project)
+        )
+        if not project_events:
+            counts["unmatchedProject"] += 1
+            continue
+        counts["matchedProject"] += 1
+        if is_approval_review(session) or is_known_internal_session(session):
+            counts["excludedApprovalOrInternal"] += 1
+            continue
+        if not has_clean_user_message(session) or not any(
+            event.kind == "user_message" for event in project_events
+        ):
+            counts["excludedWithoutUserMessage"] += 1
+            continue
+        stat = path.stat()
+        relative_ref = source_ref(path, config.sessions_root)
+        qualified_ref = f"{config.source_id}/{relative_ref}"
+        candidates.append(
+            Candidate(
+                project=project,
+                thread_id=session.id,
+                started_at=session.timestamp,
+                source_path=path,
+                source_ref=qualified_ref,
+                source_relative_ref=relative_ref,
+                fingerprint=fingerprint_events(
+                    session.id, project_events, qualified_ref
+                ),
+                events=project_events,
+                source_mtime_ns=stat.st_mtime_ns,
+                source_size=stat.st_size,
+            )
+        )
+        counts["eligible"] += 1
+    candidates.sort(key=lambda item: (item.started_at, item.thread_id))
+    duplicate_threads = sorted(
+        thread_id
+        for thread_id in {item.thread_id for item in candidates}
+        if sum(item.thread_id == thread_id for item in candidates) > 1
+    )
+    if duplicate_threads:
+        raise PipelineError(
+            "duplicate source thread ids in rebuild input: "
+            + ", ".join(duplicate_threads)
+        )
+    return candidates, counts
+
+
+def session_note_metadata(path: Path) -> tuple[dict[str, str], list[str], list[str], str]:
+    text = path.read_text(encoding="utf-8-sig")
+    try:
+        lines, _body = split_frontmatter_lines(text)
+    except SystemExit as exc:
+        raise PipelineError(f"invalid session note frontmatter: {path}") from exc
+    metadata = parse_simple_frontmatter(text)
+    version = metadata.get("schemaVersion") or "1"
+    return (
+        metadata,
+        frontmatter_list_value(lines, "sourceThreadIds"),
+        frontmatter_list_value(lines, "sourceRefs"),
+        version,
+    )
+
+
+def validate_staged_sessions(
+    sessions_path: Path,
+    candidates: Sequence[Candidate],
+    config: PipelineConfig,
+    *,
+    strict_threads: set[str] | None = None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    by_thread: dict[str, str] = {}
+    note_hashes: dict[str, str] = {}
+    candidates_by_thread = {candidate.thread_id: candidate for candidate in candidates}
+    strict = strict_threads or set()
+    for path in sorted(sessions_path.glob("*.md")):
+        metadata, thread_ids, source_refs, version = session_note_metadata(path)
+        if version != str(SESSION_SCHEMA_VERSION):
+            raise PipelineError(f"staged session note is not schemaVersion 2: {path.name}")
+        if metadata.get("type") != "session":
+            raise PipelineError(f"staged session note has invalid type: {path.name}")
+        if thread_ids:
+            if metadata.get("reviewStatus") != "unreviewed":
+                raise PipelineError(f"chat-backed note is not unreviewed: {path.name}")
+            if metadata.get("sourceType") != "codexChat" or not source_refs:
+                raise PipelineError(f"chat-backed note has incomplete provenance: {path.name}")
+            for thread_id in thread_ids:
+                if thread_id in by_thread:
+                    raise PipelineError(
+                        f"multiple staged notes match thread {thread_id}: "
+                        f"{by_thread[thread_id]}, {path.name}"
+                    )
+                by_thread[thread_id] = path.name
+                note_hashes[thread_id] = sha256(path.read_bytes()).hexdigest()
+        body = path.read_text(encoding="utf-8-sig")
+        for heading in (
+            "# Session Note",
+            "## Summary",
+            "## Key Developments",
+            "## Last Known State",
+        ):
+            if heading not in body:
+                raise PipelineError(
+                    f"staged session note is missing {heading}: {path.name}"
+                )
+        status_match = re.search(
+            r"(?m)^- Work State: (in-progress|blocked|waiting-for-user|done)\b",
+            body,
+        )
+        if status_match and metadata.get("status") != status_match.group(1):
+            raise PipelineError(
+                f"frontmatter status and Last Known State differ: {path.name}"
+            )
+        for thread_id in thread_ids:
+            candidate = candidates_by_thread.get(thread_id)
+            if candidate is None:
+                continue
+            if source_refs != [candidate.source_ref]:
+                raise PipelineError(
+                    f"sourceRefs do not match source thread {thread_id}: {path.name}"
+                )
+            expected_session_id = source_timestamp(candidate.started_at).strftime(
+                "%Y%m%dT%H%M%S%z"
+            )
+            expected_date = source_timestamp(candidate.started_at).isoformat(
+                timespec="seconds"
+            )
+            if metadata.get("sessionId") != expected_session_id or not path.name.startswith(
+                f"{expected_session_id}-"
+            ):
+                raise PipelineError(
+                    f"filename or sessionId does not match source time: {path.name}"
+                )
+            if metadata.get("date") != expected_date:
+                raise PipelineError(
+                    f"date does not match source time: {path.name}"
+                )
+            if thread_id in strict:
+                expected_scalars = {
+                    "generatorModel": config.model,
+                    "generatorReasoningEffort": config.reasoning_effort,
+                    "generatorPromptVersion": str(GENERATOR_PROMPT_VERSION),
+                    "rendererVersion": str(RENDERER_VERSION),
+                    "automatedValidation": "passed",
+                    "sourceFingerprint": candidate.fingerprint,
+                }
+                for key, expected_value in expected_scalars.items():
+                    if metadata.get(key) != expected_value:
+                        raise PipelineError(
+                            f"generated note has invalid {key}: {path.name}"
+                        )
+                file_slug = metadata.get("fileSlug") or ""
+                if (
+                    not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", file_slug)
+                    or path.name != f"{expected_session_id}-{file_slug}.md"
+                ):
+                    raise PipelineError(
+                        f"generated note filename does not match fileSlug: {path.name}"
+                    )
+    expected = {candidate.thread_id for candidate in candidates}
+    missing = expected - set(by_thread)
+    if missing:
+        raise PipelineError(
+            "staged rebuild is missing source threads: " + ", ".join(sorted(missing))
+        )
+    return by_thread, note_hashes
+
+
+def rebuild_state(
+    project: Project,
+    config: PipelineConfig,
+    previous: dict[str, Any],
+    candidates: Sequence[Candidate],
+    note_by_thread: dict[str, str],
+    note_hash_by_thread: dict[str, str],
+) -> dict[str, Any]:
+    state = deepcopy(previous)
+    processed_at = now_iso()
+    source = state["sources"][config.source_id]
+    threads = deepcopy(source.get("threads", {}))
+    for candidate in candidates:
+        threads[candidate.thread_id] = {
+            "fingerprint": candidate.fingerprint,
+            "generationFingerprint": generation_fingerprint(config, candidate),
+            "generatorModel": config.model,
+            "generatorReasoningEffort": config.reasoning_effort,
+            "generatorPromptVersion": GENERATOR_PROMPT_VERSION,
+            "rendererVersion": RENDERER_VERSION,
+            "noteHash": note_hash_by_thread[candidate.thread_id],
+            "sourceRefs": [candidate.source_ref],
+            "sessionNotes": [f"sessions/{note_by_thread[candidate.thread_id]}"],
+            "decisionIds": [],
+            "processedAt": processed_at,
+        }
+    source["threads"] = threads
+    source["lastRefreshAt"] = processed_at
+    state["lastRefreshAt"] = processed_at
+    state["approvedHistoricalRoots"] = [
+        str(root) for root in project.historical_roots
+    ]
+    return state
+
+
+def remove_rebuild_tree(project: Project, path: Path) -> None:
+    context = project.context_path.absolute()
+    target = path.absolute()
+    if target.parent != context or not target.name.startswith(
+        (".session-notes-rebuild-", ".sessions-rebuild-backup-")
+    ):
+        raise PipelineError(f"refusing to remove unmanaged rebuild path: {target}")
+    if target.exists():
+        shutil.rmtree(target)
+
+
+def rebuild_work_signature(
+    project: Project,
+    config: PipelineConfig,
+    candidates: Sequence[Candidate],
+    *,
+    force: bool,
+) -> dict[str, Any]:
+    return {
+        "schemaVersion": REBUILD_WORK_SCHEMA_VERSION,
+        "projectId": project.project_id,
+        "sourceId": config.source_id,
+        "sourceRoot": str(config.sessions_root),
+        "generatorFingerprint": generator_fingerprint(config),
+        "force": force,
+        "approvedHistoricalRoots": [str(root) for root in project.historical_roots],
+        "candidates": {
+            candidate.thread_id: {
+                "sourceFingerprint": candidate.fingerprint,
+                "generationFingerprint": generation_fingerprint(config, candidate),
+            }
+            for candidate in candidates
+        },
+    }
+
+
+def prepare_rebuild_work(
+    project: Project,
+    signature: dict[str, Any],
+) -> tuple[Path, dict[str, Any], bool]:
+    work_root = project.context_path / ".session-notes-rebuild-work"
+    manifest_path = work_root / "manifest.json"
+    reused = False
+    manifest: dict[str, Any] | None = None
+    if manifest_path.is_file():
+        try:
+            loaded = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            loaded = None
+        if isinstance(loaded, dict):
+            comparable = {
+                key: loaded.get(key)
+                for key in signature
+            }
+            if comparable == signature:
+                manifest = loaded
+                reused = True
+    if manifest is None:
+        if work_root.exists():
+            remove_rebuild_tree(project, work_root)
+        (work_root / "generated").mkdir(parents=True)
+        manifest = {
+            **signature,
+            "createdAt": now_iso(),
+            "updatedAt": now_iso(),
+            "completed": {},
+        }
+        atomic_write_json(manifest_path, manifest)
+    else:
+        (work_root / "generated").mkdir(parents=True, exist_ok=True)
+        if not isinstance(manifest.get("completed"), dict):
+            manifest["completed"] = {}
+    return work_root, manifest, reused
+
+
+def save_rebuild_work(work_root: Path, manifest: dict[str, Any]) -> None:
+    manifest["updatedAt"] = now_iso()
+    atomic_write_json(work_root / "manifest.json", manifest)
+
+
+def reusable_generated_note(
+    work_root: Path,
+    manifest: dict[str, Any],
+    candidate: Candidate,
+    config: PipelineConfig,
+) -> Path | None:
+    completed = manifest.get("completed", {}).get(candidate.thread_id)
+    if not isinstance(completed, dict):
+        return None
+    if (
+        completed.get("sourceFingerprint") != candidate.fingerprint
+        or completed.get("generationFingerprint")
+        != generation_fingerprint(config, candidate)
+    ):
+        return None
+    filename = str(completed.get("file") or "")
+    if not filename or Path(filename).name != filename:
+        return None
+    path = work_root / "generated" / filename
+    if not path.is_file():
+        return None
+    if sha256(path.read_bytes()).hexdigest() != completed.get("noteHash"):
+        return None
+    _metadata, thread_ids, source_refs, version = session_note_metadata(path)
+    if (
+        version != str(SESSION_SCHEMA_VERSION)
+        or thread_ids != [candidate.thread_id]
+        or source_refs != [candidate.source_ref]
+    ):
+        return None
+    return path
+
+
+def replace_sessions_and_state(
+    project: Project,
+    staged_sessions: Path,
+    state: dict[str, Any],
+) -> list[str]:
+    warnings: list[str] = []
+    context = project.context_path.absolute()
+    live = project.sessions_path.absolute()
+    backup = context / f".sessions-rebuild-backup-{uuid.uuid4().hex}"
+    if live.parent != context or staged_sessions.parent.parent != context:
+        raise PipelineError("refusing rebuild outside the project context folder")
+    original_state = project.state_path.read_bytes() if project.state_path.exists() else None
+    moved_live = False
+    installed_staged = False
+    try:
+        if live.exists():
+            os.replace(live, backup)
+            moved_live = True
+        os.replace(staged_sessions, live)
+        installed_staged = True
+        atomic_write_json(project.state_path, state)
+    except Exception:
+        if installed_staged and live.exists():
+            failed = staged_sessions.parent / "failed-sessions"
+            os.replace(live, failed)
+        if moved_live and backup.exists():
+            os.replace(backup, live)
+        if original_state is None:
+            if project.state_path.exists():
+                project.state_path.unlink()
+        else:
+            atomic_write_text(
+                project.state_path,
+                original_state.decode("utf-8-sig"),
+            )
+        raise
+    if backup.exists():
+        try:
+            shutil.rmtree(backup)
+        except OSError as exc:
+            warnings.append(
+                f"new sessions and state were committed, but backup cleanup failed: "
+                f"{backup}: {exc}"
+            )
+    return warnings
+
+
+def execute_rebuild(
+    config: PipelineConfig,
+    project: Project,
+    *,
+    summarizer: Summarizer | None,
+    approve_roots: Sequence[Path] = (),
+    force: bool = False,
+    dry_run: bool = False,
+    cache_root: Path | None = None,
+    progress: Callable[[dict[str, Any]], None] | None = None,
+) -> tuple[dict[str, Any], Path]:
+    started = now_local()
+    start_deadline = started + timedelta(minutes=config.runtime_minutes)
+    hard_deadline = start_deadline + timedelta(minutes=IN_FLIGHT_GRACE_MINUTES)
+    previous_state = load_refresh_state(project, config)
+    approved = [
+        Path(str(value)).expanduser().absolute()
+        for value in previous_state.get("approvedHistoricalRoots", [])
+    ]
+    for requested in approve_roots:
+        verified = verify_historical_root(project, requested)
+        if normalize_path_text(str(verified)) not in {
+            normalize_path_text(str(value)) for value in approved
+        }:
+            approved.append(verified)
+    project = replace(project, historical_roots=tuple(approved))
+    candidates, scan_counts = scan_rebuild_candidates(config, project)
+    candidates_by_thread = {item.thread_id: item for item in candidates}
+
+    preserve: list[Path] = []
+    legacy: list[Path] = []
+    replaced_v2: list[Path] = []
+    matched_v2: dict[str, Path] = {}
+    generator_versions = {"current": 0, "older": 0, "unknown": 0}
+    if project.sessions_path.is_dir():
+        for path in sorted(project.sessions_path.glob("*.md")):
+            metadata, thread_ids, _source_refs, version = session_note_metadata(path)
+            if version == "1":
+                legacy.append(path)
+                continue
+            if version != str(SESSION_SCHEMA_VERSION):
+                raise PipelineError(
+                    f"unsupported session schemaVersion {version}: {path.name}"
+                )
+            if len(thread_ids) == 1 and thread_ids[0] in candidates_by_thread:
+                if thread_ids[0] in matched_v2:
+                    raise PipelineError(
+                        f"multiple v2 notes match thread {thread_ids[0]}"
+                    )
+                matched_v2[thread_ids[0]] = path
+                prompt_version = metadata.get("generatorPromptVersion")
+                renderer_version = metadata.get("rendererVersion")
+                if not prompt_version or not renderer_version:
+                    generator_versions["unknown"] += 1
+                elif (
+                    prompt_version == str(GENERATOR_PROMPT_VERSION)
+                    and renderer_version == str(RENDERER_VERSION)
+                    and metadata.get("generatorModel") == config.model
+                    and metadata.get("generatorReasoningEffort")
+                    == config.reasoning_effort
+                ):
+                    generator_versions["current"] += 1
+                else:
+                    generator_versions["older"] += 1
+                if force:
+                    replaced_v2.append(path)
+                    continue
+            preserve.append(path)
+
+    generate = [
+        candidate
+        for candidate in candidates
+        if force or candidate.thread_id not in matched_v2
+    ]
+    deleted = [
+        {"file": path.name, "sha256": sha256(path.read_bytes()).hexdigest()}
+        for path in legacy
+    ]
+    report: dict[str, Any] = {
+        "schemaVersion": 1,
+        "startedAt": started.isoformat(timespec="seconds"),
+        "finishedAt": None,
+        "mode": "rebuild",
+        "dryRun": dry_run,
+        "projectId": project.project_id,
+        "force": force,
+        "generator": {
+            "model": config.model,
+            "reasoningEffort": config.reasoning_effort,
+            "promptVersion": GENERATOR_PROMPT_VERSION,
+            "rendererVersion": RENDERER_VERSION,
+            "fingerprint": generator_fingerprint(config),
+        },
+        "approvedHistoricalRoots": [str(root) for root in approved],
+        "scan": scan_counts,
+        "selectedCount": len(candidates),
+        "preservedV2": [path.name for path in preserve],
+        "generatorVersions": generator_versions,
+        "generationCount": len(generate),
+        "generationThreadIds": [item.thread_id for item in generate],
+        "deletedLegacy": deleted,
+        "replacedV2": [
+            {"file": path.name, "sha256": sha256(path.read_bytes()).hexdigest()}
+            for path in replaced_v2
+        ],
+        "processed": [],
+        "failed": [],
+        "deferred": [],
+        "warnings": [],
+        "resumedCount": 0,
+        "resumeAvailable": 0,
+        "existingTotalBytes": sum(
+            path.stat().st_size
+            for path in project.sessions_path.glob("*.md")
+        )
+        if project.sessions_path.is_dir()
+        else 0,
+    }
+    if dry_run:
+        report["finishedAt"] = now_iso()
+        report_path = write_run_report(cache_root or default_cache_root(), report)
+        return report, report_path
+    if summarizer is None:
+        raise PipelineError("a summarizer is required for a rebuild")
+
+    project.context_path.mkdir(parents=True, exist_ok=True)
+    signature = rebuild_work_signature(
+        project, config, candidates, force=force
+    )
+    work_root, work_manifest, reused_work = prepare_rebuild_work(
+        project, signature
+    )
+    report["reusedWorkArea"] = reused_work
+    if hasattr(summarizer, "set_deadline"):
+        summarizer.set_deadline(hard_deadline)  # type: ignore[attr-defined]
+    stage_root = project.context_path / f".session-notes-rebuild-{uuid.uuid4().hex}"
+    staged_sessions = stage_root / "sessions"
+    generated_by_thread: dict[str, Path] = {}
+    for index, candidate in enumerate(generate):
+        reusable = reusable_generated_note(
+            work_root, work_manifest, candidate, config
+        )
+        if reusable is not None:
+            generated_by_thread[candidate.thread_id] = reusable
+            report["resumedCount"] += 1
+            report["processed"].append(
+                {
+                    "threadId": candidate.thread_id,
+                    "sessionNote": reusable.name,
+                    "resumed": True,
+                    "noteHash": sha256(reusable.read_bytes()).hexdigest(),
+                    "generationFingerprint": generation_fingerprint(
+                        config, candidate
+                    ),
+                }
+            )
+            if progress:
+                progress(
+                    {
+                        "type": "thread-resumed",
+                        "index": index + 1,
+                        "total": len(generate),
+                        "threadId": candidate.thread_id,
+                    }
+                )
+            continue
+        if now_local() >= start_deadline:
+            report["deferred"].extend(
+                {
+                    "threadId": item.thread_id,
+                    "reason": "runtime-deadline",
+                }
+                for item in generate[index:]
+                if item.thread_id not in generated_by_thread
+            )
+            break
+        thread_started = time.monotonic()
+        if progress:
+            progress(
+                {
+                    "type": "thread-start",
+                    "index": index + 1,
+                    "total": len(generate),
+                    "threadId": candidate.thread_id,
+                }
+            )
+        try:
+            data = summarizer.generate(candidate)
+            validate_note_data(data, {event.id for event in candidate.events})
+            revalidate_candidate(candidate, config)
+            note_path, _existing, _distilled = choose_note_path(
+                candidate,
+                str(data["fileSlug"]),
+                sessions_path=work_root / "generated",
+                match_existing=False,
+            )
+            data["fileSlug"] = file_slug_from_note_path(candidate, note_path)
+            data["_generatorModel"] = config.model
+            data["_generatorReasoningEffort"] = config.reasoning_effort
+            atomic_write_text(note_path, render_note(candidate, data, {}, []))
+            note_hash = sha256(note_path.read_bytes()).hexdigest()
+            work_manifest["completed"][candidate.thread_id] = {
+                "file": note_path.name,
+                "noteHash": note_hash,
+                "sourceFingerprint": candidate.fingerprint,
+                "generationFingerprint": generation_fingerprint(
+                    config, candidate
+                ),
+                "completedAt": now_iso(),
+            }
+            save_rebuild_work(work_root, work_manifest)
+            generated_by_thread[candidate.thread_id] = note_path
+            duration = round(time.monotonic() - thread_started, 3)
+            metrics = deepcopy(getattr(summarizer, "last_metrics", {}))
+            report["processed"].append(
+                {
+                    "threadId": candidate.thread_id,
+                    "sessionNote": note_path.name,
+                    "resumed": False,
+                    "durationSeconds": duration,
+                    "noteHash": note_hash,
+                    "generationFingerprint": generation_fingerprint(
+                        config, candidate
+                    ),
+                    **metrics,
+                }
+            )
+            if progress:
+                progress(
+                    {
+                        "type": "thread-complete",
+                        "index": index + 1,
+                        "total": len(generate),
+                        "threadId": candidate.thread_id,
+                        "durationSeconds": duration,
+                        **metrics,
+                    }
+                )
+        except Exception as exc:
+            report["failed"].append(
+                {
+                    "threadId": candidate.thread_id,
+                    "error": str(exc),
+                }
+            )
+            if progress:
+                progress(
+                    {
+                        "type": "thread-failed",
+                        "index": index + 1,
+                        "total": len(generate),
+                        "threadId": candidate.thread_id,
+                        "error": str(exc),
+                    }
+                )
+    report["resumeAvailable"] = len(work_manifest.get("completed", {}))
+    if report["failed"] or report["deferred"]:
+        report["finishedAt"] = now_iso()
+        report_path = write_run_report(cache_root or default_cache_root(), report)
+        return report, report_path
+
+    staged_sessions.mkdir(parents=True)
+    try:
+        for path in preserve:
+            shutil.copy2(path, staged_sessions / path.name)
+        for candidate in generate:
+            generated = generated_by_thread.get(candidate.thread_id)
+            if generated is None:
+                raise PipelineError(
+                    f"generated note missing from rebuild work area: {candidate.thread_id}"
+                )
+            destination = staged_sessions / generated.name
+            if destination.exists():
+                raise PipelineError(
+                    f"generated filename conflicts with preserved v2 note: {generated.name}"
+                )
+            shutil.copy2(generated, destination)
+        for candidate in candidates:
+            revalidate_candidate(candidate, config)
+        note_by_thread, note_hash_by_thread = validate_staged_sessions(
+            staged_sessions,
+            candidates,
+            config,
+            strict_threads={candidate.thread_id for candidate in generate},
+        )
+        state = rebuild_state(
+            project,
+            config,
+            previous_state,
+            candidates,
+            note_by_thread,
+            note_hash_by_thread,
+        )
+        report["warnings"].extend(
+            replace_sessions_and_state(project, staged_sessions, state)
+        )
+    except Exception as exc:
+        report["failed"].append({"error": str(exc)})
+        report["finishedAt"] = now_iso()
+        report_path = write_run_report(cache_root or default_cache_root(), report)
+        return report, report_path
+    finally:
+        if stage_root.exists():
+            remove_rebuild_tree(project, stage_root)
+    try:
+        remove_rebuild_tree(project, work_root)
+    except OSError as exc:
+        report["warnings"].append(
+            f"rebuild succeeded, but reusable work cleanup failed: {work_root}: {exc}"
+        )
+    report["newTotalBytes"] = sum(
+        path.stat().st_size for path in project.sessions_path.glob("*.md")
+    )
+    report["finishedAt"] = now_iso()
+    report_path = write_run_report(cache_root or default_cache_root(), report)
+    return report, report_path
+
+
 def execute_pipeline(
     config: PipelineConfig,
     projects: Sequence[Project],
@@ -941,9 +2029,11 @@ def execute_pipeline(
     thread_ids: Sequence[str] = (),
     limit: int | None = None,
     cache_root: Path | None = None,
+    progress: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[dict[str, Any], Path]:
     started = now_local()
-    deadline = started + timedelta(minutes=config.runtime_minutes)
+    start_deadline = started + timedelta(minutes=config.runtime_minutes)
+    hard_deadline = start_deadline + timedelta(minutes=IN_FLIGHT_GRACE_MINUTES)
     candidates, scan_counts = scan_candidates(
         config,
         projects,
@@ -980,8 +2070,10 @@ def execute_pipeline(
     else:
         if summarizer is None:
             raise PipelineError("a summarizer is required for a write run")
+        if hasattr(summarizer, "set_deadline"):
+            summarizer.set_deadline(hard_deadline)  # type: ignore[attr-defined]
         for index, candidate in enumerate(candidates):
-            if now_local() >= deadline:
+            if now_local() >= start_deadline:
                 report["deferred"].extend(
                     {
                         "projectId": item.project.project_id,
@@ -991,6 +2083,16 @@ def execute_pipeline(
                     for item in candidates[index:]
                 )
                 break
+            thread_started = time.monotonic()
+            if progress:
+                progress(
+                    {
+                        "type": "thread-start",
+                        "index": index + 1,
+                        "total": len(candidates),
+                        "threadId": candidate.thread_id,
+                    }
+                )
             try:
                 note_path = write_candidate_note(candidate, config, summarizer)
             except Exception as exc:  # Per-thread isolation is intentional.
@@ -1001,14 +2103,39 @@ def execute_pipeline(
                         "error": str(exc),
                     }
                 )
+                if progress:
+                    progress(
+                        {
+                            "type": "thread-failed",
+                            "index": index + 1,
+                            "total": len(candidates),
+                            "threadId": candidate.thread_id,
+                            "error": str(exc),
+                        }
+                    )
                 continue
+            duration = round(time.monotonic() - thread_started, 3)
+            metrics = deepcopy(getattr(summarizer, "last_metrics", {}))
             report["processed"].append(
                 {
                     "projectId": candidate.project.project_id,
                     "threadId": candidate.thread_id,
                     "sessionNote": note_path.relative_to(candidate.project.context_path).as_posix(),
+                    "durationSeconds": duration,
+                    **metrics,
                 }
             )
+            if progress:
+                progress(
+                    {
+                        "type": "thread-complete",
+                        "index": index + 1,
+                        "total": len(candidates),
+                        "threadId": candidate.thread_id,
+                        "durationSeconds": duration,
+                        **metrics,
+                    }
+                )
     report["finishedAt"] = now_iso()
     report_path = write_run_report(cache_root or default_cache_root(), report)
     return report, report_path

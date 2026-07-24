@@ -24,16 +24,35 @@ sessionId: 20260201T090000+0900
 
 ### WI-01: Session contract
 
-- Request: Replace the over-distilled handoff schema with a realistic factual record.
-- Clarification / Correction: Treat the new contract as a complete redesign without compatibility history.
-- Action: Defined three required body sections and two optional evidence-oriented sections.
-- Explicit Decision: Use three required body sections: `Summary`, `Key Developments`, and `Last Known State`.
+#### Request
+
+- Replace the over-distilled handoff schema with a realistic factual record.
+
+#### Clarification / Correction
+
+- Treat the new contract as a complete redesign without compatibility history.
+
+#### Action
+
+- Defined three required body sections and two optional evidence-oriented sections.
+
+#### Explicit Decision
+
+- Use three required body sections: `Summary`, `Key Developments`, and `Last Known State`.
 
 ### WI-02: Downstream alignment
 
-- Action: Updated resume and distillation readers to consume the factual structure.
-- Validation: The session fixture checks passed.
-- Reported Result: Decision and current-truth classification no longer occurs in the session writer.
+#### Action
+
+- Updated resume and distillation readers to consume the factual structure.
+
+#### Validation
+
+- The session fixture checks passed.
+
+#### Reported Result
+
+- Decision and current-truth classification no longer occurs in the session writer.
 
 ## Last Known State
 
