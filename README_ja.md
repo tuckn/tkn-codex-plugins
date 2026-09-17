@@ -30,9 +30,8 @@ Codex は marketplace manifest を次の場所から読み込みます。
 
 ### Tuckn Codex Context Engineering
 
-この plugin は、Codex が前回の作業の続きを理解しやすくするためのものです。リポジトリ
-の状況、進行中の作業、重要な判断を軽量なメモとして残し、次の chat で同じ背景説明を
-繰り返さずに再開できるようにします。
+この plugin は、Brain DumpをMarkdownの計画ノートに整理し、ローカルのCodex chat履歴を
+検索します。同梱Skillは `organize-brain-dump` と `search-all-codex-chats` の2つです。
 
 Path:
 

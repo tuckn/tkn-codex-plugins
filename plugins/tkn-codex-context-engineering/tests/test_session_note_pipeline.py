@@ -599,12 +599,14 @@ class SessionNotePipelineTests(unittest.TestCase):
             }
         )
 
-        text = render_note(candidate, data, {}, [])
+        text = render_note(candidate, data, {})
 
         self.assertIn("### WI-01: Requested work", text)
         self.assertIn("#### Request", text)
         self.assertIn("### WI-02: Second task", text)
         self.assertIn("#### Validation", text)
+        self.assertNotIn("distillationStatus", text)
+        self.assertNotIn("distilledTo", text)
 
     def test_rebuild_state_write_failure_restores_legacy_sessions(self) -> None:
         write_chat(self.sessions / "chat.jsonl", thread_id="thread-1", cwd=self.repo)
@@ -750,7 +752,7 @@ class SessionNotePipelineTests(unittest.TestCase):
         self.assertIn('generatorModel: "gpt-5.6-sol"', note)
         self.assertIn('generatorReasoningEffort: "high"', note)
         self.assertIn("generatorPromptVersion: 2", note)
-        self.assertIn("rendererVersion: 2", note)
+        self.assertIn("rendererVersion: 3", note)
         self.assertIn("generatedAt:", note)
         self.assertIn('fileSlug: "automated-session"', note)
         self.assertIn('automatedValidation: "passed"', note)

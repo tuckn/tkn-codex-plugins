@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.15.0",
-  "description": "Initialize Codex projects, automatically generate session notes from local chats, plan and shadow-materialize multi-source context rebuilds, read and refresh private project context, aggregate registered project portfolios, search and review Codex chats, and manage sessions, decisions, memos, freshness, and distillation.",
+  "version": "0.17.0",
+  "description": "Organize Brain Dumps into Markdown planning notes and search local Codex chat history.",
   "author": {
     "name": "Tuckn"
   },
@@ -10,30 +10,18 @@
   "license": "MIT",
   "keywords": [
     "codex",
-    "context",
-    "project-registry",
-    "working-context",
-    "session-logs",
-    "session-notes",
-    "automation",
-    "cli",
-    "decisions",
-    "memos",
-    "chat-review",
+    "brain-dump",
+    "planning",
+    "markdown",
     "chat-history",
-    "context-refresh",
-    "context-rebuild",
-    "multi-source",
-    "project-portfolio",
-    "freshness",
-    "distillation",
+    "chat-search",
     "skills"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
-    "shortDescription": "Read and maintain private Codex project context",
-    "longDescription": "A Codex plugin and companion CLI for project initialization through .tkn/codex-context.yaml, unattended session-note generation from local Codex chats, read-only multi-source rebuild planning, schema-v2 shadow draft materialization, current-project orientation from private working dashboards, project-scoped refresh from named Codex chat archives, registered-project portfolio aggregation, sessions, decisions, memos, cross-project chat search and review, distillation, and freshness audits.",
+    "shortDescription": "Organize ideas and search Codex chats",
+    "longDescription": "Two Skills for organizing rough ideas into Markdown plans in ./organize-brain-dump/ under the current Codex Project Folder by default, and searching local Codex JSONL chats. Explicit user destinations and project instructions take precedence. Source project metadata can be retained without requiring project registration.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -41,9 +29,8 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Read this project's current working context",
-      "Refresh this project's session notes, decisions, and working context from Codex chat history",
-      "Write a private portfolio dashboard from all registered project working contexts"
+      "Organize this Brain Dump into a planning note in this project",
+      "Search my local Codex chat history for past decisions on this topic"
     ],
     "brandColor": "#2563EB",
     "screenshots": []

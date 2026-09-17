@@ -1,6 +1,6 @@
 ---
 name: organize-brain-dump
-description: ユーザーが思いつくままに書いた Brain-Dump、箇条書き、文の羅列、未整理メモを整理し、その上で Codex の意見・助言・次アクションを Frontmatter 付き Markdown に出力する依頼で使う。既定では登録済み Codex Project の project memos folder に保存し、chat や AGENTS.md などに保存場所の指示がある場合はそれを優先する。思考整理、壁打ち、相談、論点整理、仮説整理、作業記録案、運用案、ブログやSNSの素材化候補の整理に使う。
+description: ユーザーが思いつくままに書いた Brain-Dump、箇条書き、文の羅列、未整理メモを整理し、その上で Codex の意見・助言・次アクションを Frontmatter 付き Markdown に出力する依頼で使う。既定では Codex Project Folder 直下の organize-brain-dump フォルダに保存し、chat や AGENTS.md などの保存場所の指示を優先する。思考整理、壁打ち、相談、論点整理、仮説整理、作業記録案、運用案、ブログやSNSの素材化候補の整理に使う。
 ---
 
 # Organize Brain Dump
@@ -14,20 +14,17 @@ Brain-Dump を、素材の勢いを失わせずに扱いやすい Markdown note 
 整理結果は、次の優先順で新規 Markdown file として作成する。
 
 1. chat 内でユーザーが保存場所を指示した場合は、その場所に従う。
-2. `AGENTS.md` などの repository instructions が保存場所を指定している場合は、その場所に従う。
-3. それ以外では、登録済み current project の `~/.tkn/codex-context/state/<projectId>/memos/` に作成する。
+2. `AGENTS.md` などの project instructions が保存場所を指定している場合は、その場所に従う。
+3. それ以外では、現在の Codex Project Folder を基準に `./organize-brain-dump/` に作成する。Skill のインストール先や一時的な作業サブフォルダを基準にしない。Project Folder を特定できない場合だけ、ユーザーへ保存先を確認する。
 
 既定の filename:
 
-`~/.tkn/codex-context/state/<projectId>/memos/YYYYMMDDTHHMMSS<system-timezone-offset>_<short-ja-or-en-title>.md`
+`<Codex Project Folder>/organize-brain-dump/YYYYMMDDTHHMMSS<system-timezone-offset>_<short-ja-or-en-title>.md`
 
-- timestamp は system timezone の offset 付き local time を使う。
-- filename title は内容が scan できる短い名前にする。
-- current project に保存する場合は、`.tkn/codex-context.yaml` と `~/.tkn/codex-context/state/index.jsonl` から `projectId` と project context folder を解決する。
-- `memos/` が存在しない場合は作成する。
-- current project を解決できず、明示的な保存場所もない場合は、保存前にユーザーへ保存場所の指定または project registration を依頼する。
-- `sessions/` や `decisions/` には保存しない。それらが必要な場合は、対応する session / decision Skill を使う。
-- `_inbox/ai/` は、chat または repository instructions が明示した場合だけ使う。
+- 既定では年フォルダや `_inbox` を挟まず、`organize-brain-dump/` 直下に保存する。
+- timestamp は system timezone の offset 付き local time を使い、filename title は短くする。
+- 保存先フォルダがなければ作成する。Project 登録、専用の context store、Obsidian Vault は不要。
+- 保存先に独自の規約がある場合は従う。移動や整理のために既存 note の日付を書き換えない。
 - 既存 note を直接大きく変更しない。必要なら選択した保存場所に案を作る。
 - chat reply では、作成 file path と要点だけを短く返す。
 
@@ -39,7 +36,7 @@ type: plan
 title: <note title>
 description: <short description>
 generator: Codex
-reviewStatus: draft
+reviewStatus: unreviewed
 date: YYYY-MM-DDTHH:mm:ss<system-timezone-offset-with-colon>
 updated: YYYY-MM-DDTHH:mm:ss<system-timezone-offset-with-colon>
 noteId: <UUID>
@@ -47,9 +44,16 @@ noteId: <UUID>
 ```
 
 - `type` は repository instruction に従い、当面は `plan` を default とする。
-- `reviewStatus` は通常 `draft`。
+- `reviewStatus` は通常 `unreviewed`。保存先の仕様があればそれを優先する。
 - `date` と `updated` は同じ作成時刻でよい。
 - `noteId` は UUID v4 を使う。
+
+## Origin metadata
+
+- 作成元 Codex Project を確認できる場合は、`originCodexProjectId`・`originCodexProjectName` を Frontmatter に記録する。確実な chat ID やログがある場合は `originCodexThreadId`・`originCodexLog` も記録してよい。
+- 不明な値を folder 名や話題だけから推測しない。Project marker や registry を新規作成する必要はない。
+- ChatGPT由来の素材を取り込む場合は `originService: ChatGPT` を記録し、元の `generator`・日時・Project情報を維持する。クラウド上の Project・session・chat の特定は保留してよい。
+- 作成元と、本文で話題にしている関連 Project を混同しない。
 
 ## Workflow
 

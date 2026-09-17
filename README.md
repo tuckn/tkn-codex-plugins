@@ -30,9 +30,8 @@ repositories and publish completed bundles into `plugins/<plugin-name>/`.
 
 ### Tuckn Codex Context Engineering
 
-This plugin helps Codex pick up project work where it left off. It keeps lightweight notes about
-the repository, active work, and important decisions so a later chat can resume without repeating
-the same background.
+This plugin organizes Brain Dumps into Markdown planning notes and searches local Codex chat
+history. Its two bundled Skills are `organize-brain-dump` and `search-all-codex-chats`.
 
 Path:
 

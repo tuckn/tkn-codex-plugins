@@ -15,7 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Callable, Iterable, Protocol, Sequence
+from typing import Any, Callable, Protocol, Sequence
 
 from .chat_logs import (
     ChatEvent,
@@ -54,7 +54,7 @@ DEFAULT_MODEL_TIMEOUT_SECONDS = 1800
 DEFAULT_CHUNK_CHARACTERS = 120_000
 MAX_EVENT_TEXT_CHARACTERS = 8_000
 GENERATOR_PROMPT_VERSION = 2
-RENDERER_VERSION = 2
+RENDERER_VERSION = 3
 REBUILD_WORK_SCHEMA_VERSION = 1
 IN_FLIGHT_GRACE_MINUTES = 9
 MAX_SUMMARY_ITEMS = 5
@@ -414,7 +414,6 @@ def update_refresh_state(
         "noteHash": sha256(note_path.read_bytes()).hexdigest(),
         "sourceRefs": [candidate.source_ref],
         "sessionNotes": [relative_note],
-        "decisionIds": [],
         "processedAt": processed_at,
     }
     source["lastRefreshAt"] = processed_at
@@ -1097,7 +1096,7 @@ def choose_note_path(
     *,
     sessions_path: Path | None = None,
     match_existing: bool = True,
-) -> tuple[Path, dict[str, str], list[str]]:
+) -> tuple[Path, dict[str, str]]:
     target = sessions_path or candidate.project.sessions_path
     matches = find_note_matches(candidate.project, candidate.thread_id) if match_existing else []
     if len(matches) > 1:
@@ -1107,32 +1106,25 @@ def choose_note_path(
         )
     if matches:
         existing_text = matches[0].read_text(encoding="utf-8-sig")
-        lines, _body = split_frontmatter_lines(existing_text)
-        return (
-            matches[0],
-            parse_simple_frontmatter(existing_text),
-            frontmatter_list_value(lines, "distilledTo"),
-        )
+        return matches[0], parse_simple_frontmatter(existing_text)
     started = source_timestamp(candidate.started_at)
     session_id = started.strftime("%Y%m%dT%H%M%S%z")
     file_slug = title if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", title) else slugify(title)
     base = target / f"{session_id}-{file_slug}.md"
     if not base.exists():
-        return base, {}, []
+        return base, {}
     suffix = re.sub(r"[^A-Za-z0-9]", "", candidate.thread_id)[:8] or "thread"
-    return base.with_name(f"{base.stem}-{suffix}{base.suffix}"), {}, []
+    return base.with_name(f"{base.stem}-{suffix}{base.suffix}"), {}
 
 
 def render_note(
     candidate: Candidate,
     data: dict[str, Any],
     existing: dict[str, str],
-    existing_distilled_to: list[str],
 ) -> str:
     started = source_timestamp(candidate.started_at)
     created = existing.get("date") or started.isoformat(timespec="seconds")
     session_id = existing.get("sessionId") or started.strftime("%Y%m%dT%H%M%S%z")
-    distillation_status = "partial" if existing_distilled_to else "pending"
     last_state = data["lastKnownState"]
     rendered_at = now_iso()
     fields: list[tuple[str, str | int | list[str]]] = [
@@ -1153,8 +1145,6 @@ def render_note(
         ("status", str(last_state["workState"])),
         ("reviewStatus", "unreviewed"),
         ("automatedValidation", "passed"),
-        ("distillationStatus", distillation_status),
-        ("distilledTo", existing_distilled_to),
         ("date", created),
         ("updated", rendered_at),
         ("sessionId", session_id),
@@ -1257,13 +1247,13 @@ def write_candidate_note(
     allowed_ids = {event.id for event in candidate.events}
     validate_note_data(data, allowed_ids)
     revalidate_candidate(candidate, config)
-    note_path, existing, existing_distilled_to = choose_note_path(
+    note_path, existing = choose_note_path(
         candidate, str(data["fileSlug"])
     )
     data["fileSlug"] = file_slug_from_note_path(candidate, note_path)
     data["_generatorModel"] = config.model
     data["_generatorReasoningEffort"] = config.reasoning_effort
-    rendered = render_note(candidate, data, existing, existing_distilled_to)
+    rendered = render_note(candidate, data, existing)
     atomic_write_text(note_path, rendered)
     update_refresh_state(candidate.project, config, candidate, note_path)
     return note_path
@@ -1528,7 +1518,6 @@ def rebuild_state(
             "noteHash": note_hash_by_thread[candidate.thread_id],
             "sourceRefs": [candidate.source_ref],
             "sessionNotes": [f"sessions/{note_by_thread[candidate.thread_id]}"],
-            "decisionIds": [],
             "processedAt": processed_at,
         }
     source["threads"] = threads
@@ -1890,7 +1879,7 @@ def execute_rebuild(
             data = summarizer.generate(candidate)
             validate_note_data(data, {event.id for event in candidate.events})
             revalidate_candidate(candidate, config)
-            note_path, _existing, _distilled = choose_note_path(
+            note_path, _existing = choose_note_path(
                 candidate,
                 str(data["fileSlug"]),
                 sessions_path=work_root / "generated",
@@ -1899,7 +1888,7 @@ def execute_rebuild(
             data["fileSlug"] = file_slug_from_note_path(candidate, note_path)
             data["_generatorModel"] = config.model
             data["_generatorReasoningEffort"] = config.reasoning_effort
-            atomic_write_text(note_path, render_note(candidate, data, {}, []))
+            atomic_write_text(note_path, render_note(candidate, data, {}))
             note_hash = sha256(note_path.read_bytes()).hexdigest()
             work_manifest["completed"][candidate.thread_id] = {
                 "file": note_path.name,
