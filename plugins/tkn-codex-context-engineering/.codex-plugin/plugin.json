@@ -1,6 +1,6 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Organize Brain Dumps into Markdown planning notes and search local Codex chat history.",
   "author": {
     "name": "Tuckn"
@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Organize ideas and search Codex chats",
-    "longDescription": "Two Skills for organizing rough ideas into Markdown plans in ./organize-brain-dump/ under the current Codex Project Folder by default, and searching local Codex JSONL chats. Explicit user destinations and project instructions take precedence. Source project metadata can be retained without requiring project registration.",
+    "longDescription": "Two Skills for organizing rough ideas into Markdown plans in ./.agents/organize-brain-dump/ under the current Codex Project Folder by default, and searching local Codex JSONL chats. Explicit user destinations and project instructions take precedence. Source project metadata can be retained without requiring project registration.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [

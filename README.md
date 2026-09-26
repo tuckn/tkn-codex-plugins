@@ -40,6 +40,7 @@ plugins/tkn-codex-context-engineering/
 詳細:
 
 - [Plugin README](plugins/tkn-codex-context-engineering/README.md)
+- [変更履歴](CHANGELOG.md)
 
 ## Plugin の追加
 
