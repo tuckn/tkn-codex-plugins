@@ -1,37 +1,35 @@
 # tkn-codex-plugins
 
-[English](README.md) | [日本語](README_ja.md)
+Tuckn の公開 Codex plugin marketplace です。
 
-Tuckn's public Codex plugin marketplace.
+## インストール
 
-## Install
-
-Add this repository as a Codex plugin marketplace:
+このリポジトリを Codex plugin marketplace として追加します。
 
 ```sh
 codex plugin marketplace add tuckn/tkn-codex-plugins --ref main
 ```
 
-Codex reads the marketplace manifest from:
+Codex は marketplace manifest を次の場所から読み込みます。
 
 ```text
 .agents/plugins/marketplace.json
 ```
 
-## Marketplace Layout
+## Marketplace の構成
 
-- `.agents/plugins/marketplace.json`: marketplace catalog for this repository.
-- `plugins/`: publishable Codex plugin bundles.
+- `.agents/plugins/marketplace.json`: このリポジトリの marketplace catalog。
+- `plugins/`: 公開可能な Codex plugin bundle。
 
-This repository stores finished plugin bundles. Development source trees should live in separate
-repositories and publish completed bundles into `plugins/<plugin-name>/`.
+このリポジトリには完成済みの plugin bundle を置きます。開発用の source tree は別の
+リポジトリに置き、完成した bundle を `plugins/<plugin-name>/` に反映します。
 
 ## Plugins
 
 ### Tuckn Codex Context Engineering
 
-This plugin organizes Brain Dumps into Markdown planning notes and searches local Codex chat
-history. Its two bundled Skills are `organize-brain-dump` and `search-all-codex-chats`.
+この plugin は、Brain DumpをMarkdownの計画ノートに整理し、ローカルのCodex chat履歴を
+検索します。同梱Skillは `organize-brain-dump` と `search-all-codex-chats` の2つです。
 
 Path:
 
@@ -39,32 +37,31 @@ Path:
 plugins/tkn-codex-context-engineering/
 ```
 
-Details:
+詳細:
 
 - [Plugin README](plugins/tkn-codex-context-engineering/README.md)
-- [日本語 README](plugins/tkn-codex-context-engineering/README_ja.md)
 
-## Adding Plugins
+## Plugin の追加
 
-Add each new plugin under:
+新しい plugin は次の場所に追加します。
 
 ```text
 plugins/<plugin-name>/
 ```
 
-Each plugin must include:
+各 plugin には次の manifest が必要です。
 
 ```text
 plugins/<plugin-name>/.codex-plugin/plugin.json
 ```
 
-Then add a matching entry to:
+次に、対応する entry を以下に追加します。
 
 ```text
 .agents/plugins/marketplace.json
 ```
 
-Use repo-relative marketplace paths such as:
+marketplace path には、次のような repo-relative path を使います。
 
 ```json
 {

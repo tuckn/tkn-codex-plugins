@@ -15,20 +15,21 @@ Brain-Dump を、素材の勢いを失わせずに扱いやすい Markdown note 
 
 1. chat 内でユーザーが保存場所を指示した場合は、その場所に従う。
 2. `AGENTS.md` などの project instructions が保存場所を指定している場合は、その場所に従う。
-3. それ以外では、現在の Codex Project Folder を基準に `./organize-brain-dump/` に作成する。Skill のインストール先や一時的な作業サブフォルダを基準にしない。Project Folder を特定できない場合だけ、ユーザーへ保存先を確認する。
+3. それ以外では、現在の Codex Project Folder を基準に `./.agents/organize-brain-dump/` に作成する。Skill のインストール先や一時的な作業サブフォルダを基準にしない。Project Folder を特定できない場合、ユーザーへ保存先を確認する。
 
 既定の filename:
 
-`<Codex Project Folder>/organize-brain-dump/YYYYMMDDTHHMMSS<system-timezone-offset>_<short-ja-or-en-title>.md`
+`YYYYMMDDTHHMMSS<system-timezone-offset>_<short-ja-or-en-title>.md`
 
-- 既定では年フォルダや `_inbox` を挟まず、`organize-brain-dump/` 直下に保存する。
 - timestamp は system timezone の offset 付き local time を使い、filename title は短くする。
-- 保存先フォルダがなければ作成する。Project 登録、専用の context store、Obsidian Vault は不要。
+- 保存先フォルダがなければ作成する。
 - 保存先に独自の規約がある場合は従う。移動や整理のために既存 note の日付を書き換えない。
 - 既存 note を直接大きく変更しない。必要なら選択した保存場所に案を作る。
 - chat reply では、作成 file path と要点だけを短く返す。
 
 ## Required Frontmatter
+
+出力 note は Obsidian で読むことを前提とする。Frontmatter はトップレベルのプロパティだけを使い、値は文字列・数値・真偽値・日付などの scalar、または文字列の配列にする。入れ子の object、object の配列、配列の配列は使わない。[Obsidian の Properties](https://obsidian.md/help/properties) は nested properties の編集に対応していない。
 
 ```yaml
 ---
@@ -39,25 +40,60 @@ generator: Codex
 reviewStatus: unreviewed
 date: YYYY-MM-DDTHH:mm:ss<system-timezone-offset-with-colon>
 updated: YYYY-MM-DDTHH:mm:ss<system-timezone-offset-with-colon>
-noteId: <UUID>
+id: <UUID>
+sourceType: <codexChat | chatgptChat | file | mixed>
+sourceExcerpts:
+  - "<ユーザー入力を識別できる短い原文抜粋>"
 ---
 ```
 
-- `type` は repository instruction に従い、当面は `plan` を default とする。
+- `type` は `plan` を default とする。
 - `reviewStatus` は通常 `unreviewed`。保存先の仕様があればそれを優先する。
-- `date` と `updated` は同じ作成時刻でよい。
-- `noteId` は UUID v4 を使う。
+- 新規作成時、`date` と `updated` は同じ作成時刻でよい。
+- `id` は出力 note 自体の UUID v4。旧 `noteId` と同じ意味なので、新規出力では `id` に統一する。既存 note を明示的に更新する場合は UUID を維持する。
+- `date`・`updated` は出力 note の日時。入力の発言日時は `sourceLocators` に記録する。
+- `sourceType` と、対象入力を特定する `sourceLocators` または `sourceExcerpts` を下記の規則で記録する。例の placeholder は実値に置き換える。
 
-## Origin metadata
+## Source metadata
 
-- 作成元 Codex Project を確認できる場合は、`originCodexProjectId`・`originCodexProjectName` を Frontmatter に記録する。確実な chat ID やログがある場合は `originCodexThreadId`・`originCodexLog` も記録してよい。
-- 不明な値を folder 名や話題だけから推測しない。Project marker や registry を新規作成する必要はない。
-- ChatGPT由来の素材を取り込む場合は `originService: ChatGPT` を記録し、元の `generator`・日時・Project情報を維持する。クラウド上の Project・session・chat の特定は保留してよい。
-- 作成元と、本文で話題にしている関連 Project を混同しない。
+ユーザーの入力 raw material を後からたどれるよう、素材の出所と使用した範囲を Frontmatter に記録する。`tkn_codex_chat_note_pipeline` の session note と同じ意味の項目は、次の名前と型に揃える。
+
+| 旧名 | 新規出力の名前 | 内容 |
+| --- | --- | --- |
+| `originCodexProjectId` | `sourceProjectId` | 入力元 Project の確認済み ID。 |
+| `originCodexProjectName` | `sourceProjectName` | 入力元 Project の確認済み表示名。この Skill の補足項目。 |
+| `originCodexThreadId` | `sourceThreadIds` | 入力元の thread ID の文字列配列。1 件でも配列にする。 |
+| `originCodexLog` | `sourceCaptureRef` / `sourceCaptureRefs` | 保存済み RAW capture への参照。通常のログファイルしか確認できない場合は、その参照を `sourceRefs` に記録する。 |
+| `originService` | `sourceType` | Codex chat は `codexChat`、ChatGPT chat は `chatgptChat`。 |
+
+- `sourceType` は素材の種類。ファイル由来は `file`、異種の素材を併用する場合は `mixed` とする。`codexChat` 以外の値はこの Skill での拡張であり、session note の schema 互換性を意味しない。
+- `sourceRefs` は入力元の論理参照・URL・ファイル参照の文字列配列。Codex thread は参照ノートと同じ `codex/<thread-id>` を使う。既存の生成物や管理データに正式な参照値がある場合は、その値を維持する。ファイル参照は基準を明記した相対パスか file URI とし、ローカル Windows パスは `/` 区切りにする。
+- `sourceLocators` は実際に整理したユーザー入力の位置を示す文字列配列で、この Skill の追加項目。1 要素に入力元の参照と、確認できる message ID・turn ID・offset 付き発言日時、またはファイル内の見出し・1-based 行範囲をまとめる。参照部分は `sourceRefs` のいずれかと一致させる。例: "codex/<thread-id>; messageId=<confirmed-message-id>; timestamp=<confirmed-ISO-8601-timestamp>"。複数の発言やファイルを使った場合は、素材ごとに追加する。
+- `sourceExcerpts` は識別に必要な短い原文抜粋の文字列配列で、この Skill の追加項目。対象入力を位置情報だけで特定できない場合に使う。複数の素材を使う場合は、各文字列に確認済みの入力元参照や発言 ID を添え、`sourceLocators` との対応を配列の順番だけに依存させない。ID・ログ・ファイル参照が取得できない chat 入力では、確認できる発言日時や原文抜粋を残し、参照の未確認を本文に明記する。抜粋は要約や Codex の返答で代用せず、秘密情報や不要な個人情報を含めない。安全に識別情報を残せない場合も、その限界を本文に明記する。
+- `sourceCaptureRefs` は確認済みの RAW capture の参照配列。`sourceCaptureSha256s` を記録する場合は、各ファイルの実バイト列から計算した SHA-256 を同じ順序・件数で並べる。単数形の `sourceCaptureRef`・`sourceCaptureSha256` を併記する場合は、それぞれ配列の先頭と一致させる。`raw:/...` は既存の管理データから解決できる値だけを使い、通常のログパスから捏造しない。
+- `sourceFingerprint`・`sourceSetSha256` は pipeline 固有の計算規則を持つ。対象となる入力集合が同じで、既存値または同じ計算規則を確認できる場合だけ記録する。原文抜粋やログファイルの単純なハッシュで代用しない。
+- 不明な ID・Project・参照・ハッシュは省略し、folder 名や話題から推測しない。Project marker・registry・RAW capture を新規作成する必要はない。入力元が複数 Project にまたがる場合は、単一の `sourceProjectId`・`sourceProjectName` にまとめない。
+- `source*` は入力素材の出所を示す。今回 note を生成・保存する Project や、本文で話題にする関連 Project と混同しない。`generator` は今回の出力を生成した Codex を示し、素材側の generator・日時は元資料で維持する。
+- 新規出力で旧名と新名を重複させない。`type: plan` を維持し、session note 専用の `sessionNoteId`・`schemaVersion`・生成 pipeline の version 情報を流用しない。
+
+Codex chat の入力元と対象発言を確認できた場合の例（各 placeholder を確認済みの値に置き換える）:
+
+```yaml
+sourceType: codexChat
+sourceThreadIds:
+  - "<thread-id>"
+sourceRefs:
+  - "codex/<thread-id>"
+sourceProjectId: "<confirmed-project-id>"
+sourceLocators:
+  - "codex/<thread-id>; messageId=<confirmed-message-id>; timestamp=<confirmed-ISO-8601-timestamp>"
+sourceExcerpts:
+  - "codex/<thread-id>; messageId=<confirmed-message-id>; excerpt=<対象のユーザー入力を識別できる短い原文抜粋>"
+```
 
 ## Workflow
 
-1. 入力を raw material として読む。
+1. 入力を raw material として読み、Source metadata に従って入力元と対象発言・ファイル内の範囲を確認する。
 2. 主題、背景、目的、制約、問い、事実、推測、仮説、感情・違和感、候補案、望んでいる出力を分ける。
 3. ユーザーの意図を、元の表現より少し抽象化して再構成する。
 4. 必要なら不足観点、確認すべき情報、前提の揺れを補う。
@@ -65,7 +101,7 @@ noteId: <UUID>
 6. 次アクションを、すぐできるものと、調査・設計が必要なものに分ける。
 7. ユーザーに確認すべき質問を、Markdown 内の独立 section として作る。
 8. Output location の優先順に従って Markdown file を作成する。
-9. 必要に応じて作成 file の内容を確認し、frontmatter と見出しを検証する。
+9. 作成 file の Frontmatter と見出しを確認し、`sourceLocators`・`sourceExcerpts` が実際に整理したユーザー入力を指すこと、Frontmatter に入れ子の構造がないこと、参照・配列・ハッシュに未確認値や placeholder が残っていないことを検証する。
 
 ## Recommended structure
 
