@@ -1,4 +1,4 @@
-# Tuckn Codex Context Engineering
+# Tkn Codex Context Engineering
 
 Brain DumpをMarkdownの計画ノートに整理し、ローカルのCodex chat履歴を検索するpluginです。
 同梱するSkillは次の2つです。
