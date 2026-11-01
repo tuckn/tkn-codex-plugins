@@ -25,6 +25,8 @@ class ChatMessage:
     timestamp: str
     turn_id: str
     cwd: str
+    line_number: int = 0
+    phase: str = ""
 
 
 @dataclass(frozen=True)
@@ -380,7 +382,7 @@ def read_session(path: Path) -> SessionLog | None:
     turn_id = ""
     turn_cwd = ""
 
-    def append_message(role: str, source: str, text: str, timestamp: str) -> None:
+    def append_message(role: str, source: str, text: str, timestamp: str, phase: str = "") -> None:
         if role == "user":
             text = clean_user_text(text)
         text = text.strip()
@@ -399,10 +401,12 @@ def read_session(path: Path) -> SessionLog | None:
                 timestamp=timestamp,
                 turn_id=turn_id,
                 cwd=effective_cwd,
+                line_number=line_number,
+                phase=phase,
             )
         )
 
-    for obj in iter_json_lines(path):
+    for line_number, obj in iter_json_line_records(path):
         event_type = obj.get("type")
         payload = obj.get("payload") or {}
         timestamp = str(obj.get("timestamp") or "")
@@ -432,7 +436,10 @@ def read_session(path: Path) -> SessionLog | None:
         if event_type == "response_item" and isinstance(payload, dict):
             role = payload.get("role")
             if role in {"user", "assistant"}:
-                append_message(role, "response_item", content_to_text(payload.get("content")), timestamp)
+                append_message(
+                    role, "response_item", content_to_text(payload.get("content")),
+                    timestamp, str(payload.get("phase") or payload.get("channel") or ""),
+                )
             continue
 
         if event_type == "message":
@@ -451,7 +458,10 @@ def read_session(path: Path) -> SessionLog | None:
             if payload_type == "user_message":
                 append_message("user", "event_msg", str(payload.get("message") or ""), timestamp)
             elif payload_type == "agent_message":
-                append_message("assistant", "event_msg", str(payload.get("message") or ""), timestamp)
+                append_message(
+                    "assistant", "event_msg", str(payload.get("message") or ""),
+                    timestamp, str(payload.get("phase") or ""),
+                )
 
     if not meta:
         return None

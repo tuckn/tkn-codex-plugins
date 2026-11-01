@@ -9,8 +9,30 @@ marketplace catalog 自体には独立したバージョンを設けていませ
 
 ## [Unreleased]
 
+### Changed
+
+- `search-all-codex-chats` は既知のchatで利用可能な標準の履歴ツールを優先し、
+  本文横断検索・標準ツールのない環境では同梱scriptを使う構成へ変更。
+- 検索結果は一致発言と前後を優先し、会話順・発言日時・turn ID・行番号・phaseを保持。
+  一致発言は表示件数の目安を超えても残し、省略・非表示の件数を明示する。
+- JSON出力を `schema_version: 2` のobjectへ変更し、検索範囲・条件・結果を
+  `coverage`・`filters`・`sessions` に分離。旧consumerはトップレベル配列の代わりに
+  `result["sessions"]` を読む必要がある。
+- queryは会話本文のみを検索する。ID・cwdなどのmetadata検索には専用filterを使う。
+
+### Fixed
+
+- JSON出力でも `--no-include-assistant` を適用し、非表示の一致発言数を明示。
+- 長い発言の一致箇所を含む抜粋を表示し、離れた検索語には別の抜粋を用意。
+- Skillのscript実行例を、読み込んだSkillの配置先から絶対パスを解決する方式へ修正。
+
 ### Added
 
+- active/archived/allの検索範囲、archive root指定、発言単位のcwd/日付filter、
+  最新発言日filter、日付境界のUTC offset、並び順、前後発言数の指定を追加。
+- ローカル範囲・未認識ログ・読取失敗・parser警告・件数制限を出力に追加。
+- 検索scriptの回帰testと、schema referenceの出力契約・移行手順を追加。
+- 従来のactive検索、開始時点のcwd/日付filter、作成日の昇順は既定値として維持。
 - Claude Code 用の marketplace manifest `.claude-plugin/marketplace.json` と
   plugin manifest `plugins/tkn-codex-context-engineering/.claude-plugin/plugin.json` を追加。
   Skill・共有 library は Codex と同じ bundle をそのまま使う。
