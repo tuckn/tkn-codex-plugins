@@ -1,0 +1,12 @@
+{
+  "name": "tkn-codex-context-engineering",
+  "version": "0.18.0",
+  "description": "Organize Brain Dumps into Markdown planning notes and search local Codex chat history.",
+  "author": {
+    "name": "Tuckn"
+  },
+  "homepage": "https://github.com/tuckn/tkn-codex-plugins/tree/main/plugins/tkn-codex-context-engineering",
+  "repository": "https://github.com/tuckn/tkn-codex-plugins",
+  "license": "MIT",
+  "keywords": ["codex", "claude-code", "brain-dump", "planning", "markdown", "chat-history", "chat-search", "skills"]
+}

@@ -16,10 +16,31 @@ Codex は marketplace manifest を次の場所から読み込みます。
 .agents/plugins/marketplace.json
 ```
 
+### Claude Code
+
+同じ plugin bundle を Claude Code plugin としても使えます。
+
+```sh
+claude plugin marketplace add tuckn/tkn-codex-plugins
+claude plugin install tkn-codex-context-engineering@tkn-codex-plugins
+```
+
+ローカルの clone を登録すると、bundle の変更は Claude Code の次回 session 開始時
+または `/reload-plugins` で反映されます。
+
+```sh
+claude plugin marketplace add <path-to>/tkn-codex-plugins
+```
+
+Claude Code は marketplace manifest を `.claude-plugin/marketplace.json`、
+plugin manifest を `plugins/<plugin-name>/.claude-plugin/plugin.json` から読み込みます。
+Skill は Codex と共通の `plugins/<plugin-name>/skills/` を使います。
+
 ## Marketplace の構成
 
-- `.agents/plugins/marketplace.json`: このリポジトリの marketplace catalog。
-- `plugins/`: 公開可能な Codex plugin bundle。
+- `.agents/plugins/marketplace.json`: Codex 用の marketplace catalog。
+- `.claude-plugin/marketplace.json`: Claude Code 用の marketplace catalog。
+- `plugins/`: 公開可能な plugin bundle。Codex と Claude Code の manifest を併置する。
 
 このリポジトリには完成済みの plugin bundle を置きます。開発用の source tree は別の
 リポジトリに置き、完成した bundle を `plugins/<plugin-name>/` に反映します。

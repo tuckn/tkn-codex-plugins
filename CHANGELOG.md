@@ -7,6 +7,14 @@ marketplace catalog 自体には独立したバージョンを設けていませ
 0.x の間は、機能追加や利用方法・出力契約の変更を minor、互換性を保つ修正を patch として扱います。
 日付はこのリポジトリでの変更日です。公開・インストール済みであることを示すものではありません。
 
+## [Unreleased]
+
+### Added
+
+- Claude Code 用の marketplace manifest `.claude-plugin/marketplace.json` と
+  plugin manifest `plugins/tkn-codex-context-engineering/.claude-plugin/plugin.json` を追加。
+  Skill・共有 library は Codex と同じ bundle をそのまま使う。
+
 ## [0.18.0] - 2026-09-26
 
 ### Changed

@@ -1,0 +1,15 @@
+{
+  "name": "tkn-codex-plugins",
+  "description": "Tuckn's plugins shared by Codex and Claude Code",
+  "owner": {
+    "name": "Tuckn"
+  },
+  "plugins": [
+    {
+      "name": "tkn-codex-context-engineering",
+      "source": "./plugins/tkn-codex-context-engineering",
+      "description": "Organize Brain Dumps into Markdown planning notes and search local Codex chat history.",
+      "category": "productivity"
+    }
+  ]
+}
