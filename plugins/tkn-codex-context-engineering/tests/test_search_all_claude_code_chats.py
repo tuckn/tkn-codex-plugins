@@ -144,10 +144,56 @@ class ClaudeCodeChatSearchTests(unittest.TestCase):
                         self.message("new", uuid="u2")])
         result = self.first("--session-id", "example")
         self.assertEqual("Recorded title", result["title"])
+        self.assertEqual([("First title", 2), ("Recorded title", 4)],
+                         [(t["title"], t["line_number"]) for t in result["title_history"]])
         self.assertEqual(["example", "old"], result["recorded_session_ids"])
         self.assertEqual("old", result["messages"][0]["session_id"])
         self.assertEqual([], self.run_search("--session-id", "old")["sessions"])
         self.assertEqual([], self.run_search("--query", "Recorded title")["sessions"])
+        self.assertEqual([], self.run_search("--title", "Wrong title")["sessions"])
+
+    def write_titled(self, name, records):
+        return self.write_log([self.message(f"{name} body", sessionId=name), *[
+            {"type": kind, "sessionId": name, field: value} for kind, field, value in records]],
+            relative=f"{name}.jsonl")
+
+    def test_title_matches_custom_ai_and_earlier_titles_ignoring_case_width_and_spaces(self):
+        self.write_titled("shared", [("ai-title", "aiTitle", "Share plugin settings"),
+                                     ("custom-title", "customTitle", "Plugin設定をチームに共有する方法")])
+        self.write_titled("renamed", [("custom-title", "customTitle", "起動後の重い処理"),
+                                      ("custom-title", "customTitle", "Plugin起動エラー")])
+        self.write_titled("side", [("custom-title", "customTitle", "btw: エラーになります…")])
+        self.write_titled("untitled", [])
+        ids = lambda *options: sorted(s["id"] for s in self.run_search(*options)["sessions"])
+        self.assertEqual(["shared"], ids("--title", "PLUGIN設定"))
+        self.assertEqual(["shared"], ids("--title", "Ｐｌｕｇｉｎ　設定を チーム"))
+        self.assertEqual(["shared"], ids("--title", "share plugin"))
+        self.assertEqual(["renamed", "shared"], ids("--title", "plugin"))
+        self.assertEqual(["shared"], ids("--title", "plugin", "--title", "共有"))
+        self.assertEqual(["side"], ids("--title", "エラーになります..."))
+        self.assertEqual([], ids("--title", "absent"))
+        renamed = self.first("--title", "起動後 の")
+        self.assertEqual("Plugin起動エラー", renamed["title"])
+        self.assertEqual("", renamed["ai_title"])
+        self.assertEqual([{"source": "custom-title", "title": "起動後の重い処理", "line_number": 2}],
+                         renamed["matched_titles"])
+        shared = self.first("--title", "share")
+        self.assertEqual(("Plugin設定をチームに共有する方法", "Share plugin settings"),
+                         (shared["title"], shared["ai_title"]))
+        self.assertEqual(["ai-title"], [t["source"] for t in shared["matched_titles"]])
+
+    def test_title_combines_with_query_and_query_still_ignores_titles(self):
+        self.write_titled("shared", [("custom-title", "customTitle", "Plugin設定をチームに共有する方法")])
+        self.assertEqual(1, len(self.run_search("--title", "plugin", "--query", "shared body")["sessions"]))
+        self.assertEqual([], self.run_search("--title", "plugin", "--query", "absent")["sessions"])
+        report = self.run_search("--query", "Plugin設定")
+        self.assertEqual([], report["sessions"])
+        self.assertIn("retry with `--title`", search.render_markdown(report))
+        titled = self.run_search("--title", "Plugin設定")
+        self.assertEqual(["Plugin設定"], titled["filters"]["title"])
+        markdown = search.render_markdown(titled)
+        self.assertIn('- matched titles: "Plugin設定をチームに共有する方法" (custom-title, L2)', markdown)
+        self.assertNotIn("retry with", markdown)
 
     def test_nested_and_legacy_agents_are_separate_and_opt_in(self):
         self.write_log()
@@ -271,7 +317,7 @@ class ClaudeCodeChatSearchTests(unittest.TestCase):
             self.assertEqual(1, search.search(args, parser)["coverage"]["files_scanned"])
 
     def test_invalid_arguments_fail_clearly(self):
-        cases = [("--query", ""), ("--regex", "--query", "["), ("--limit", "-1"),
+        cases = [("--query", ""), ("--title", ""), ("--title", " 　 "), ("--regex", "--query", "["), ("--limit", "-1"),
                  ("--utc-offset=+24:00",), ("--date-from", "2026-11-02", "--date-to", "2026-11-01"),
                  ("--projects-root", str(self.base / "missing"))]
         for options in cases:

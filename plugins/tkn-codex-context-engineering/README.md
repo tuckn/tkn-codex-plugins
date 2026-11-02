@@ -37,7 +37,9 @@ JSONは `schema_version: 2` のobjectに変更し、`coverage`・`filters`・`se
 
 Claude Code検索は `$CLAUDE_CONFIG_DIR/projects` または `~/.claude/projects` の
 ローカルtranscriptを読みます。`--projects-root` の複数指定、`--session-file` の直接指定、
-`--session-id`・cwd・日付での絞り込み、本文検索、全文取得、Markdown/JSON出力に対応します。
+`--session-id`・タイトル・cwd・日付での絞り込み、本文検索、全文取得、Markdown/JSON出力に対応します。
+`--title` は記録済みのタイトル（手動・AI生成・改名前）を部分一致で照合し、大文字小文字・全角半角・空白の違いを無視します。
+Claude Code自身でも、ユーザーが別のチャットや前のセッションをタイトル・話題で指したときに使います。
 通常会話が既定で、subagentは `--include-subagents` で含めます。
 専用scriptはPython標準libraryのみで動作し、Claude Codeの起動・認証や追加packageは不要です。
 ログ・設定の変更、index作成、ネットワーク送信は行いません。

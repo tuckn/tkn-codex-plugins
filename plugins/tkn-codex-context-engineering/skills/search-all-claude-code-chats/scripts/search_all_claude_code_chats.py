@@ -8,12 +8,16 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 sys.dont_write_bytecode = True
+
+# Session title records and the field that holds each title.
+TITLE_RECORDS = {"custom-title": "customTitle", "ai-title": "aiTitle"}
 
 
 def nonnegative(value: str) -> int:
@@ -44,6 +48,11 @@ def string(value: Any) -> str:
 
 def normalize_path(value: str) -> str:
     return value.replace("\\", "/").rstrip("/").casefold()
+
+
+def title_key(value: str) -> str:
+    """Compare titles without case, full/half-width, or whitespace differences."""
+    return "".join(unicodedata.normalize("NFKC", value).casefold().split())
 
 
 def content_text(content: Any) -> str:
@@ -88,7 +97,8 @@ def read_transcript(path: Path, coverage: dict[str, Any], include_subagents: boo
     messages: list[dict[str, Any]] = []
     seen: set[tuple[str, str, str]] = set()
     recorded_ids: set[str] = set()
-    title = ""
+    latest_titles = dict.fromkeys(TITLE_RECORDS, "")
+    title_history: list[dict[str, Any]] = []
     agent_id = path.stem.removeprefix("agent-") if is_subagent_path(path) else ""
     parent_id = path.parent.parent.name if path.parent.name == "subagents" else ""
     transcript_id = path.stem.split(".orphaned-", 1)[0]
@@ -105,8 +115,11 @@ def read_transcript(path: Path, coverage: dict[str, Any], include_subagents: boo
                 warning(coverage, f"{path}:L{line_number}: expected an object")
                 continue
             kind = string(row.get("type"))
-            if kind == "custom-title" and row.get("sessionId") == transcript_id:
-                title = string(row.get("customTitle"))
+            if kind in TITLE_RECORDS and row.get("sessionId") == transcript_id:
+                value = string(row.get(TITLE_RECORDS[kind]))
+                latest_titles[kind] = value
+                if value and not any(t["source"] == kind and t["title"] == value for t in title_history):
+                    title_history.append({"source": kind, "title": value, "line_number": line_number})
             if kind not in {"user", "assistant"}:
                 coverage["ignored_record_types"][kind or "(missing type)"] += 1
                 continue
@@ -149,7 +162,8 @@ def read_transcript(path: Path, coverage: dict[str, Any], include_subagents: boo
     return {
         "id": transcript_id, "parent_session_id": parent_id,
         "agent_id": agent_id, "kind": "subagent" if subagent else "main",
-        "recorded_session_ids": sorted(recorded_ids), "title": title,
+        "recorded_session_ids": sorted(recorded_ids), "title": latest_titles["custom-title"],
+        "ai_title": latest_titles["ai-title"], "title_history": title_history,
         "path": str(path.absolute()), "cwd": next((m["cwd"] for m in messages if m["cwd"]), ""),
         "created": min(dated, key=timestamp) if dated else "",
         "updated": max(dated, key=timestamp) if dated else "", "messages": messages,
@@ -180,9 +194,20 @@ def clip(text: str, limit: int, match: re.Match[str] | None = None) -> dict[str,
             "truncated": start > 0 or end < len(text)}
 
 
+def match_titles(session: dict[str, Any], keys: list[str]) -> list[dict[str, Any]] | None:
+    """Return matching recorded titles when every key matches at least one of them."""
+    entries = [(entry, title_key(entry["title"])) for entry in session["title_history"]]
+    if not all(any(key in normalized for _, normalized in entries) for key in keys):
+        return None
+    return [entry for entry, normalized in entries if any(key in normalized for key in keys)]
+
+
 def select_session(session: dict[str, Any], args: argparse.Namespace) -> dict[str, Any] | None:
     identities = {session["id"], session["parent_session_id"]} - {""}
     if args.session_id and not identities.intersection(args.session_id):
+        return None
+    matched_titles = match_titles(session, args.title_keys) if args.title_keys else []
+    if matched_titles is None:
         return None
     if args.cwd_field == "session" and not cwd_matches(session["cwd"], args):
         return None
@@ -233,7 +258,7 @@ def select_session(session: dict[str, Any], args: argparse.Namespace) -> dict[st
         ]
         messages.append(result)
     return {**session, "messages": messages, "matched_queries": [q for q, _ in args.patterns if q in found],
-            "eligible_message_count": len(eligible), "omitted_message_count": len(visible - selected),
+            "matched_titles": matched_titles, "eligible_message_count": len(eligible), "omitted_message_count": len(visible - selected),
             "hidden_matching_message_count": len(set(hits) - visible)}
 
 
@@ -243,6 +268,9 @@ def build_parser() -> argparse.ArgumentParser:
     roots.add_argument("--projects-root", action="append", help="Repeatable projects root; replaces default roots.")
     roots.add_argument("--session-file", action="append", help="Read only these transcript files instead of scanning roots.")
     parser.add_argument("--session-id", action="append", default=[], help="Exact transcript ID, or parent ID for subagents.")
+    parser.add_argument("--title", action="append", default=[],
+                        help="Substring of a recorded custom or AI session title, including earlier titles. "
+                             "Ignores case, full/half-width and whitespace; repeated values use AND.")
     parser.add_argument("--include-subagents", action="store_true")
     parser.add_argument("--cwd-contains", action="append", default=[])
     parser.add_argument("--cwd-field", choices=["session", "message"], default="session")
@@ -269,6 +297,9 @@ def search(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[st
         parser.error("--date-from must be on or before --date-to")
     if any(not q for q in args.query):
         parser.error("--query must not be empty")
+    args.title_keys = list(dict.fromkeys(title_key(t) for t in args.title))
+    if any(not key for key in args.title_keys):
+        parser.error("--title must contain non-space text")
     try:
         args.patterns = [(q, re.compile(q if args.regex else re.escape(q), re.IGNORECASE | re.MULTILINE))
                          for q in dict.fromkeys(args.query)]
@@ -328,12 +359,17 @@ def search(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[st
         sessions = sessions[:args.limit]
     coverage["returned_sessions"] = len(sessions)
     filters = {key: getattr(args, key) for key in (
-        "query", "regex", "query_user_only", "session_id", "include_subagents", "include_assistant",
+        "query", "regex", "query_user_only", "title", "session_id", "include_subagents", "include_assistant",
         "cwd_contains", "cwd_field", "date_field", "sort_by", "order", "limit",
         "messages_per_role", "context_messages", "max_message_chars",
     )}
     filters.update(date_from=str(args.date_from or ""), date_to=str(args.date_to or ""), utc_offset=str(args.utc_offset))
     return {"schema_version": 1, "source": "claude-code", "coverage": coverage, "filters": filters, "sessions": sessions}
+
+
+def format_titles(entries: list[dict[str, Any]]) -> str:
+    return "; ".join(f"{json.dumps(e['title'], ensure_ascii=False)} ({e['source']}, L{e['line_number']})"
+                     for e in entries) or "(none)"
 
 
 def render_markdown(report: dict[str, Any]) -> str:
@@ -347,9 +383,16 @@ def render_markdown(report: dict[str, Any]) -> str:
         if key != "roots":
             lines.append(f"- {key}: {json.dumps(value, ensure_ascii=False)}")
     lines.extend(["", "Filters:", "", "```json", json.dumps(report["filters"], ensure_ascii=False, indent=2), "```"])
+    if not coverage["matched_sessions"] and report["filters"]["query"] and not report["filters"]["title"]:
+        lines.extend(["", "Note: `--query` searches message text only, not session titles. "
+                          "If the user named the session by its title, retry with `--title`."])
     for session in report["sessions"]:
         lines.extend(["", "---", "", f"## {session['id']}", "", f"- title (recorded): {json.dumps(session['title'], ensure_ascii=False)}",
-                      f"- path: `{session['path']}`", f"- cwd: `{session['cwd']}`",
+                      f"- AI title (recorded): {json.dumps(session['ai_title'], ensure_ascii=False)}",
+                      f"- recorded titles: {format_titles(session['title_history'])}"])
+        if report["filters"]["title"]:
+            lines.append(f"- matched titles: {format_titles(session['matched_titles'])}")
+        lines.extend([f"- path: `{session['path']}`", f"- cwd: `{session['cwd']}`",
                       f"- kind: {session['kind']}; parent session: `{session['parent_session_id']}`; agent: `{session['agent_id']}`",
                       f"- created: {session['created']}; latest text: {session['updated']}",
                       f"- omitted visible messages: {session['omitted_message_count']}",

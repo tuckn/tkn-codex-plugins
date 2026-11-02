@@ -32,7 +32,7 @@ The file directory name is not decoded into cwd: path encoding is lossy and can 
 | --- | --- |
 | Top-level `type: user` or `assistant`, with a `message` object | Use string `content` or list blocks with `type: text` and string `text`. Preserve newlines and text-block order. |
 | `timestamp`, `cwd`, `uuid`, `parentUuid`, `sessionId`, `isSidechain`, `agentId` | Preserve provenance without inventing missing values. The physical JSONL line is 1-based. |
-| `custom-title` / `customTitle` | Latest recorded title for the destination transcript, only when `sessionId` matches its ID. |
+| `custom-title` / `customTitle`, `ai-title` / `aiTitle` | Session titles for the destination transcript, only when `sessionId` matches its ID. The last record of each kind gives `title` / `ai_title`; each distinct nonempty value is kept in `title_history` with its first line. Titles inherited from another session ID are not used. `agent-name` records (observed to mirror custom titles) are ignored. |
 | `tool_use`, `tool_result`, `thinking`, images, other content blocks | Do not traverse or turn into conversation text, even if they contain nested `text` fields. Mixed records retain only their top-level text blocks. |
 | `isMeta` or `isCompactSummary` | Exclude and count as generated messages. |
 | System, summary, progress, request/blob, attachment, queue and other records | Ignore; count by record type. Request blobs are not assistant messages. |
@@ -43,7 +43,9 @@ UTF-8 and UTF-8 BOM are supported. Invalid JSON, non-object records, and malform
 
 ## Filters And Selection
 
-Queries are case-insensitive literal substrings, or Python regular expressions with IGNORECASE/MULTILINE when `--regex` is set. Repeated queries use AND across eligible messages within one transcript, not necessarily within a single message. The first match of each query in each message gets an excerpt window. Empty queries and invalid regexes are errors.
+Queries are case-insensitive literal substrings, or Python regular expressions with IGNORECASE/MULTILINE when `--regex` is set. Repeated queries use AND across eligible messages within one transcript, not necessarily within a single message. The first match of each query in each message gets an excerpt window. Empty queries and invalid regexes are errors. Queries never match titles.
+
+`--title` is a literal substring match against every entry in `title_history` (custom and AI titles, including earlier titles). Both sides are compared after Unicode NFKC normalization, case-folding, and removal of all whitespace, so `Ｐｌｕｇｉｎ　設定` matches `Plugin設定` and `…` matches `...`. Repeated values use AND: each value must match at least one recorded title of the transcript. `--regex` does not apply. A transcript without a recorded title never matches. The title filter is applied with `--session-id` before cwd/date/query selection. Empty or whitespace-only values are errors.
 
 `--cwd-contains` values are AND substrings after case-folding, slash normalization, and removing a trailing slash. `--cwd-field session` (default) uses the first nonempty retained message cwd. `message` uses each message's own recorded cwd, without filling in missing values.
 
@@ -71,7 +73,9 @@ The independent Claude Code output starts at version 1; it does not claim compat
 
 `coverage` includes selected absolute roots/file paths and their kind, discovered/scanned files, unreadable files/directories, files without messages, parser warnings, duplicate messages, non-text messages, excluded subagent files, sidechain/generated messages, set-aside files, ignored record-type counts, matched/returned sessions, and excluded-source descriptions. These counts describe this scan only. They cannot measure deleted or unpersisted history. Diagnostics go to stderr; JSON stdout remains parseable.
 
-Each session contains identity/provenance fields described above, `title`, `path`, `cwd`, `created`, `updated`, `matched_queries`, `eligible_message_count`, `omitted_message_count`, `hidden_matching_message_count`, and `messages`.
+Each session contains identity/provenance fields described above, `title`, `ai_title`, `title_history`, `path`, `cwd`, `created`, `updated`, `matched_queries`, `matched_titles`, `eligible_message_count`, `omitted_message_count`, `hidden_matching_message_count`, and `messages`. Each `title_history` and `matched_titles` entry contains `source` (`custom-title` or `ai-title`), `title`, and `line_number`. `matched_titles` is empty without `--title`. These title fields were added without changing `schema_version`; existing fields keep their meaning.
+
+When a `--query` search without `--title` matches no transcript, the Markdown output adds a note that titles need `--title`.
 
 Each message contains `role`, `text`, `timestamp`, `uuid`, `parent_uuid`, `session_id`, `cwd`, `line_number`, `is_sidechain`, `agent_id`, `truncated`, `text_start`, `text_end`, `matched_queries`, and `matched_excerpts`. Each matched excerpt contains `query`, `text`, `text_start`, `text_end`, `match_start`, `match_end`, and `truncated`. Offsets are zero-based/end-exclusive character positions in the full parsed message, not raw JSON bytes. Markdown quotes the same evidence with source and omission information.
 
