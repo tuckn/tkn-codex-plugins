@@ -50,8 +50,9 @@ Skill は Codex と共通の `plugins/<plugin-name>/skills/` を使います。
 ### Tuckn Codex Context Engineering
 
 この plugin は、Brain DumpをMarkdownの計画ノートに整理し、標準の履歴ツールと
-ローカルの本文検索を使い分けてCodex chat履歴を調べます。
-同梱Skillは `organize-brain-dump` と `search-all-codex-chats` の2つです。
+ローカルの本文検索を使い分けてCodex・Claude Codeのchat履歴を調べます。
+同梱Skillは `organize-brain-dump`、`search-all-codex-chats`、
+`search-all-claude-code-chats` の3つです。
 
 Path:
 

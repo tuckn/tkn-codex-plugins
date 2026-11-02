@@ -8,7 +8,7 @@
     {
       "name": "tkn-codex-context-engineering",
       "source": "./plugins/tkn-codex-context-engineering",
-      "description": "Organize Brain Dumps into Markdown planning notes and search local Codex chat history.",
+      "description": "Organize Brain Dumps into Markdown planning notes and search Codex and Claude Code chat history.",
       "category": "productivity"
     }
   ]

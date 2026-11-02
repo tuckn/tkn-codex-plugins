@@ -1,7 +1,7 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.18.0",
-  "description": "Organize Brain Dumps into Markdown planning notes and search local Codex chat history.",
+  "version": "0.19.0",
+  "description": "Organize Brain Dumps into Markdown planning notes and search Codex and Claude Code chat history.",
   "author": {
     "name": "Tuckn"
   },
@@ -10,6 +10,7 @@
   "license": "MIT",
   "keywords": [
     "codex",
+    "claude-code",
     "brain-dump",
     "planning",
     "markdown",
@@ -20,8 +21,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
-    "shortDescription": "Organize ideas and search Codex chats",
-    "longDescription": "Two Skills for organizing rough ideas into Markdown plans in ./.agents/organize-brain-dump/ under the current Codex Project Folder by default, and searching local Codex JSONL chats. Explicit user destinations and project instructions take precedence. Source project metadata can be retained without requiring project registration.",
+    "shortDescription": "Organize ideas and search agent chats",
+    "longDescription": "Three Skills for organizing rough ideas into Markdown plans in ./.agents/organize-brain-dump/ under the current Codex Project Folder by default, searching Codex chat history, and reading local Claude Code session transcripts with source evidence. Explicit user destinations and project instructions take precedence. Source project metadata can be retained without requiring project registration.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [
@@ -30,7 +31,8 @@
     ],
     "defaultPrompt": [
       "Organize this Brain Dump into a planning note in this project",
-      "Search my local Codex chat history for past decisions on this topic"
+      "Search my local Codex chat history for past decisions on this topic",
+      "Find and read my past Claude Code conversations about this topic"
     ],
     "brandColor": "#2563EB",
     "screenshots": []

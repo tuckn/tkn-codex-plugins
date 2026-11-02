@@ -28,6 +28,12 @@ marketplace catalog 自体には独立したバージョンを設けていませ
 
 ### Added
 
+- `search-all-claude-code-chats` を追加。Claude Codeのローカルsessionログを
+  本文・session ID・cwd・日付で検索し、会話順・UUID・日時・参照元の行番号を保持する。
+  通常会話とsubagentを区別し、全文取得・複数root・直接ファイル指定・Markdown/JSON出力に対応。
+  Python標準libraryだけで読み取り専用実行し、tool結果・thinking・生成文脈は本文から除外する。
+- Claude Code検索の合成ログtestとschema referenceを追加し、README・両manifestのSkill説明を同期。
+- 次の機能追加版として両plugin manifestとPython packageのversionを `0.19.0` に同期（未公開）。
 - active/archived/allの検索範囲、archive root指定、発言単位のcwd/日付filter、
   最新発言日filter、日付境界のUTC offset、並び順、前後発言数の指定を追加。
 - ローカル範囲・未認識ログ・読取失敗・parser警告・件数制限を出力に追加。
