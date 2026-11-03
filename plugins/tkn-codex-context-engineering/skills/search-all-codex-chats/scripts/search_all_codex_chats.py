@@ -181,10 +181,14 @@ def render_markdown(report: dict[str, Any]) -> str:
              f"- files scanned: {coverage['files_scanned']}",
              f"- unreadable files: {coverage['unreadable_files']}",
              f"- logs without metadata: {coverage['unrecognized_files']}",
+             f"- compressed logs not searched (.jsonl.zst): {coverage['skipped_compressed_files']}",
              f"- parser warnings: {coverage['parser_warnings']}",
              "- Scope is local conversation text; remote/cloud history and tool outputs are not searched."]
     for root in coverage["roots"]:
         lines.append(f"- {root['kind']}: `{root['path']}` (exists: {root['exists']})")
+    if coverage["skipped_compressed_files"]:
+        lines.extend(["", f"Note: {coverage['skipped_compressed_files']} compressed `.jsonl.zst` logs were not searched. "
+                          "Codex compresses older sessions, so older conversations may be missing from these results."])
     lines.extend(["", "Filters:", "", "```json", json.dumps(report["filters"], ensure_ascii=False, indent=2), "```"])
     for session in report["sessions"]:
         lines.extend(["", "---", "", f"## {session['id']}", "",
@@ -263,8 +267,10 @@ def search(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[st
         "scope": args.scope,
         "roots": [{"kind": kind, "path": str(roots[kind].absolute()), "exists": roots[kind].is_dir()} for kind in kinds],
         "files_scanned": 0, "unreadable_files": 0, "unrecognized_files": 0,
+        "skipped_compressed_files": 0,
         "parser_warnings": 0, "matched_sessions": 0, "returned_sessions": 0,
-        "excluded": ["remote/cloud history", "tool calls and outputs", "non-text content"],
+        "excluded": ["remote/cloud history", "tool calls and outputs", "non-text content",
+                     "compressed .jsonl.zst logs (counted in skipped_compressed_files)"],
     }
     # An absent archive is normal; an explicit typo must not look like a zero-result search.
     for kind in kinds:
@@ -275,10 +281,13 @@ def search(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[st
         parser.error("no selected log roots exist")
     sessions: list[dict[str, Any]] = []
     seen_paths: set[Path] = set()
+    seen_compressed: set[Path] = set()
     for kind in kinds:
         root = roots[kind]
         if not root.is_dir():
             continue
+        # Codex compresses older sessions; without zstd support they are counted, not read.
+        seen_compressed.update(path.resolve() for path in root.rglob("*.jsonl.zst"))
         for path in sorted(root.rglob("*.jsonl")):
             resolved = path.resolve()
             if resolved in seen_paths:
@@ -305,6 +314,7 @@ def search(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict[st
             if result is not None:
                 result["archive_status"] = kind
                 sessions.append(result)
+    coverage["skipped_compressed_files"] = len(seen_compressed)
     key = "updated" if args.sort_by == "updated" else "timestamp"
     sessions.sort(key=lambda s: (timestamp(s[key]) or datetime.min.replace(tzinfo=timezone.utc), s["id"], s["path"]),
                   reverse=args.order == "desc")

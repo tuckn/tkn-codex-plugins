@@ -25,6 +25,9 @@ marketplace catalog 自体には独立したバージョンを設けていませ
 - JSON出力でも `--no-include-assistant` を適用し、非表示の一致発言数を明示。
 - 長い発言の一致箇所を含む抜粋を表示し、離れた検索語には別の抜粋を用意。
 - Skillのscript実行例を、読み込んだSkillの配置先から絶対パスを解決する方式へ修正。
+- Codex検索で、読めない圧縮ログ（`.jsonl.zst`）を黙って除外していた問題を修正。
+  件数を `coverage.skipped_compressed_files` に出し、1件以上ならMarkdownに注記する。
+  中身はまだ読まない（zstdへの対応は今後の検討）。JSONは `schema_version: 2` のまま。
 
 ### Added
 

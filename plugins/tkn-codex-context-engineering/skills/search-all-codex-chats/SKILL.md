@@ -52,6 +52,7 @@ Start with the user's topic, thread, date, or project hints. Read matched eviden
 - Results preserve conversation order, timestamp, turn ID, line number, cwd, and phase when present. A missing value stays missing. Shortened text is marked; `--messages-per-role 0` alone does not disable text truncation.
 - `--format json` returns schema version 2: an object containing `coverage`, `filters`, and `sessions`, rather than the old top-level array.
 - Report selected roots, missing roots, parser warnings, unreadable logs, and limits when they affect the answer. Zero results do not prove that the topic was never discussed.
+- Codex compresses older sessions to `.jsonl.zst`, which the script cannot read. `skipped_compressed_files` counts them. When it is nonzero, say that older conversations may be missing from the local results, and use app history tools for them where available.
 
 Read [session-log-schema.md](references/session-log-schema.md) for root overrides, output fields, parser compatibility, or missing/empty logs.
 

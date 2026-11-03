@@ -154,6 +154,26 @@ class ChatSearchTests(unittest.TestCase):
         self.assertEqual(1, result["coverage"]["files_scanned"])
         self.assertEqual(1, len(result["sessions"]))
 
+    def test_compressed_logs_are_counted_and_disclosed_but_not_read(self):
+        self.write_log()
+        (self.active / "2026").mkdir()
+        for path in (self.active / "older.jsonl.zst", self.active / "2026" / "nested.jsonl.zst",
+                     self.archived / "archived.jsonl.zst"):
+            path.write_bytes(b"\x28\xb5\x2f\xfd needle")
+        active = self.run_search("--query", "needle")
+        self.assertEqual(2, active["coverage"]["skipped_compressed_files"])
+        self.assertEqual(1, active["coverage"]["files_scanned"])
+        self.assertEqual([], active["sessions"])
+        self.assertIn("2 compressed `.jsonl.zst` logs were not searched", search.render_markdown(active))
+        self.assertEqual(3, self.run_search("--scope", "all")["coverage"]["skipped_compressed_files"])
+        overlapping = self.run_search("--scope", "all", "--archived-root", str(self.active))
+        self.assertEqual(2, overlapping["coverage"]["skipped_compressed_files"])
+        for path in self.root.rglob("*.zst"):
+            path.unlink()
+        clean = self.run_search()
+        self.assertEqual(0, clean["coverage"]["skipped_compressed_files"])
+        self.assertNotIn("were not searched", search.render_markdown(clean))
+
     def test_custom_active_root_requires_explicit_archive_root(self):
         parser = search.build_parser()
         args = parser.parse_args(["--sessions-root", str(self.active), "--scope", "all"])

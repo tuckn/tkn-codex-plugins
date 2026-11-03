@@ -11,6 +11,7 @@ This is the bundled parser's supported evidence format, not a guarantee that eve
 - `--archived-root` overrides the archive root. An explicitly selected missing root is an error. Missing default roots are reported; at least one selected root must exist.
 - The same resolved file is scanned once if roots overlap. Distinct files with the same thread ID remain separate evidence sources.
 - Scanning is local and recursive over `*.jsonl`. It does not cover other hosts, cloud-only history, tool outputs, attachments, or non-text content.
+- Codex compresses older sessions to `*.jsonl.zst`. The script has no zstd support (Python before 3.14 has none in the standard library), so these files are not read. They are counted once per resolved file in `skipped_compressed_files`, and a nonzero count adds a note to the Markdown output. On one local machine checked on 2026-11-02, 1,280 of 1,380 session files were compressed, so most older history can be missing from local results.
 
 A common active layout is:
 
@@ -63,17 +64,19 @@ JSON is an object:
     "files_scanned": 0,
     "unreadable_files": 0,
     "unrecognized_files": 0,
+    "skipped_compressed_files": 0,
     "parser_warnings": 0,
     "matched_sessions": 0,
     "returned_sessions": 0,
-    "excluded": ["remote/cloud history", "tool calls and outputs", "non-text content"]
+    "excluded": ["remote/cloud history", "tool calls and outputs", "non-text content",
+                 "compressed .jsonl.zst logs (counted in skipped_compressed_files)"]
   },
   "filters": {},
   "sessions": []
 }
 ```
 
-Each root records `kind`, absolute `path`, and `exists`. A malformed JSON line emits a warning to stderr and is skipped. Files that cannot be read or decoded are counted and skipped. Logs without recognized metadata are counted separately. These counts describe the scan, not a completeness guarantee.
+Each root records `kind`, absolute `path`, and `exists`. A malformed JSON line emits a warning to stderr and is skipped. Files that cannot be read or decoded are counted and skipped. Logs without recognized metadata are counted separately. `skipped_compressed_files` counts compressed logs that were found but not read; it was added without changing the schema version. These counts describe the scan, not a completeness guarantee.
 
 Each session includes its ID, creation and latest-message timestamps, initial cwd, source path, originator, source, thread_source, archive_status, matched_queries, eligible_message_count, omitted_message_count, hidden_matching_message_count, and:
 
