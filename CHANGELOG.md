@@ -31,6 +31,12 @@ marketplace catalog 自体には独立したバージョンを設けていませ
 
 ### Added
 
+- `search-genai-chats` を追加。別途インストールする共通の検索CLI `tkn-genai-chat-search` で、
+  Codex（圧縮ログ `.jsonl.zst` とタイトルを含む）とClaude Codeの過去の会話を、タイトル（`list --title`）・
+  話題（`search --query`）で探し、`show` で全文を読む。どのAIの会話か分からなくても1回で探せる。
+  CLIがない場合は導入方法を伝えて止まる。optionの詳細はSkillに書かず、CLIの `--help` を読ませる。
+  既存の `search-all-codex-chats`・`search-all-claude-code-chats` は、新しいSkillを確かめるまで残し、
+  descriptionにCLIがあれば `search-genai-chats` を使う旨を追加した。
 - `search-all-claude-code-chats` を追加。Claude Codeのローカルsessionログを
   本文・session ID・cwd・日付で検索し、会話順・UUID・日時・参照元の行番号を保持する。
   通常会話とsubagentを区別し、全文取得・複数root・直接ファイル指定・Markdown/JSON出力に対応。

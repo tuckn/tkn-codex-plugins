@@ -51,8 +51,9 @@ Skill は Codex と共通の `plugins/<plugin-name>/skills/` を使います。
 
 この plugin は、Brain DumpをMarkdownの計画ノートに整理し、標準の履歴ツールと
 ローカルの本文検索を使い分けてCodex・Claude Codeのchat履歴を調べます。
-同梱Skillは `organize-brain-dump`、`search-all-codex-chats`、
-`search-all-claude-code-chats` の3つです。
+同梱Skillは `organize-brain-dump`、`search-genai-chats`、`search-all-codex-chats`、
+`search-all-claude-code-chats` の4つです。`search-genai-chats` は別途インストールする
+CLI [tkn-genai-chat-search](https://github.com/tuckn/tkn_genai_chat_search) を使います。
 
 Path:
 

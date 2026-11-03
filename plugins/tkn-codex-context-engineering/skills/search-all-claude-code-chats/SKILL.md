@@ -1,6 +1,6 @@
 ---
 name: search-all-claude-code-chats
-description: Find and read the user's past Claude Code sessions from local transcripts by recorded title, topic text, session ID, project, or date. Use in Claude Code itself, including the Code tab of Claude Desktop, whenever the user refers to another or earlier conversation by title or topic (for example 別のチャット, 前のセッション, the previous session, or Claudeとのチャット『…』), and search before saying it cannot be seen. Also usable from Codex or other agents. Excludes claude.ai web and Cowork conversations.
+description: Find and read the user's past Claude Code sessions from local transcripts by recorded title, topic text, session ID, project, or date. When the tkn-genai-chat-search command is installed, use the search-genai-chats Skill instead; this bundled script remains as the older path. Use in Claude Code itself, including the Code tab of Claude Desktop, whenever the user refers to another or earlier conversation by title or topic (for example 別のチャット, 前のセッション, the previous session, or Claudeとのチャット『…』), and search before saying it cannot be seen. Also usable from Codex or other agents. Excludes claude.ai web and Cowork conversations.
 ---
 
 # Search All Claude Code Chats

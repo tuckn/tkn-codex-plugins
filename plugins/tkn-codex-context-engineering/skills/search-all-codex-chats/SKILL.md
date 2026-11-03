@@ -1,6 +1,6 @@
 ---
 name: search-all-codex-chats
-description: Find and explain past Codex requests, decisions, and outcomes across chats. Prefer available app history tools for known chats; use the bundled local JSONL search for cross-chat conversation-text queries, old project paths, or environments without those tools.
+description: Find and explain past Codex requests, decisions, and outcomes across chats. Prefer available app history tools for known chats. For local search, use the search-genai-chats Skill when the tkn-genai-chat-search command is installed (it also reads compressed .jsonl.zst logs); otherwise use the bundled local JSONL search for cross-chat conversation-text queries, old project paths, or environments without those tools.
 ---
 
 # Search All Codex Chats

@@ -1,15 +1,25 @@
 # Tkn Codex Context Engineering
 
 Brain DumpをMarkdownの計画ノートに整理し、Codex・Claude Codeのchat履歴を調べるpluginです。
-同梱するSkillは次の3つです。
+同梱するSkillは次の4つです。
 
 ## 含まれるSkills
 
 | Skill | 用途 |
 | --- | --- |
 | [organize-brain-dump](skills/organize-brain-dump/SKILL.md) | 未整理の考えを構造化し、事実と助言を分けて計画ノートへ保存する。 |
-| [search-all-codex-chats](skills/search-all-codex-chats/SKILL.md) | 標準の履歴ツールとローカルの本文検索を使い分け、過去の依頼・判断・結果を探す。 |
-| [search-all-claude-code-chats](skills/search-all-claude-code-chats/SKILL.md) | Claude Codeのローカルsessionログを検索・取得し、過去の依頼・判断・結果を参照元とともに読む。 |
+| [search-genai-chats](skills/search-genai-chats/SKILL.md) | 共通の検索CLI `tkn-genai-chat-search` で、Codex・Claude Codeの過去の会話をタイトル・話題から探して読む。 |
+| [search-all-codex-chats](skills/search-all-codex-chats/SKILL.md) | 標準の履歴ツールとローカルの本文検索を使い分け、過去の依頼・判断・結果を探す。`search-genai-chats` を確かめた後に削除する予定。 |
+| [search-all-claude-code-chats](skills/search-all-claude-code-chats/SKILL.md) | Claude Codeのローカルsessionログを検索・取得し、過去の依頼・判断・結果を参照元とともに読む。`search-genai-chats` を確かめた後に削除する予定。 |
+
+`search-genai-chats` は、PCに別途インストールした [tkn-genai-chat-search](https://github.com/tuckn/tkn_genai_chat_search) を呼び出します。
+Codexの圧縮ログ（`.jsonl.zst`）とCodexのタイトルも読み、どのAIの会話かが分からなくても1回の検索で探せます。
+CLIがない場合、Skillは導入方法を伝えて止まります（plugin内のscriptでは代わりに検索しません）。
+CLIは次で導入します。
+
+```shell
+uv tool install git+https://github.com/tuckn/tkn_genai_chat_search
+```
 
 Brain Dumpの既定保存先は、現在のCodex Project Folder直下の `./.agents/organize-brain-dump/` です。
 保存先フォルダがなければ作成します。ユーザーの明示指定やprojectの
