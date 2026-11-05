@@ -1,6 +1,6 @@
 {
   "name": "tkn-codex-context-engineering",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "Organize Brain Dumps into Markdown planning notes and search Codex and Claude Code chat history.",
   "author": {
     "name": "Tuckn"
@@ -22,7 +22,7 @@
   "interface": {
     "displayName": "Tuckn Codex Context Engineering",
     "shortDescription": "Organize ideas and search agent chats",
-    "longDescription": "Skills for organizing rough ideas into Markdown plans in ./.agents/organize-brain-dump/ under the current Codex Project Folder by default, and for finding past Codex and Claude Code conversations by title or topic with source evidence through the separately installed tkn-genai-chat-search command. The older Codex and Claude Code search Skills remain until the shared one is confirmed. Explicit user destinations and project instructions take precedence. Source project metadata can be retained without requiring project registration.",
+    "longDescription": "Skills for organizing rough ideas into Markdown plans in ./.agents/organize-brain-dump/ under the current Codex Project Folder by default, and for finding past Codex and Claude Code conversations by title or topic with source evidence through the separately installed tkn-genai-chat-search command. Explicit user destinations and project instructions take precedence. Source project metadata can be retained without requiring project registration.",
     "developerName": "Tuckn",
     "category": "Productivity",
     "capabilities": [

@@ -7,7 +7,27 @@ marketplace catalog 自体には独立したバージョンを設けていませ
 0.x の間は、機能追加や利用方法・出力契約の変更を minor、互換性を保つ修正を patch として扱います。
 日付はこのリポジトリでの変更日です。公開・インストール済みであることを示すものではありません。
 
-## [Unreleased]
+## [0.20.0] - 2026-11-05
+
+### Removed
+
+- `search-all-codex-chats`・`search-all-claude-code-chats` を削除。同梱の検索script・schema reference・
+  回帰testも削除した。過去の会話は `search-genai-chats`（別途インストールするCLI `tkn-genai-chat-search`）で探す。
+  旧scriptのJSON出力（Codex用の `schema_version: 2`、Claude Code用の `schema_version: 1`）を読んでいた処理は、
+  CLIの `--json` 出力へ移る必要がある。
+
+### Changed
+
+- README・Codex manifestの説明を、同梱Skillが `organize-brain-dump`・`search-genai-chats` の2つになった構成に更新。
+- 両plugin manifestとPython packageのversionを `0.20.0` に同期。
+
+### Compatibility
+
+- Skillの削除を含むため、minorを上げて `0.20.0` とする。
+- CLI `tkn-genai-chat-search` を入れていないPCでは、過去の会話を検索できない。`search-genai-chats` は導入方法を伝えて止まる。
+- `lib/tkn_codex_context/chat_logs.py` と関連testは、既存CLI（session note）が使うため残す。
+
+## [0.19.0] - 2026-11-03
 
 ### Changed
 
@@ -112,5 +132,7 @@ Git 履歴で `0.17.0` が設定された `8fc8abd` を比較の基準とする�
   context 再構築・鮮度監査などの旧 Skill と関連する専用 script・test を削除。
 - session note の `distillationStatus`・`distilledTo` を生成・検証処理と fixture から削除。
 
-[0.18.0]: https://github.com/tuckn/tkn-codex-plugins/compare/8fc8abd7facc29fb2c99be67e693f36c30ae1253...main
+[0.20.0]: https://github.com/tuckn/tkn-codex-plugins/compare/69410e0646db543e414c6fd03baab934f618ee6c...main
+[0.19.0]: https://github.com/tuckn/tkn-codex-plugins/compare/4ef51fea0753d737073b16b6bf2082849133b831...69410e0646db543e414c6fd03baab934f618ee6c
+[0.18.0]: https://github.com/tuckn/tkn-codex-plugins/compare/8fc8abd7facc29fb2c99be67e693f36c30ae1253...4ef51fea0753d737073b16b6bf2082849133b831
 [0.17.0]: https://github.com/tuckn/tkn-codex-plugins/commit/8fc8abd7facc29fb2c99be67e693f36c30ae1253
