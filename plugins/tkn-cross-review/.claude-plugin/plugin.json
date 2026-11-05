@@ -1,0 +1,12 @@
+{
+  "name": "tkn-cross-review",
+  "version": "0.1.0",
+  "description": "Have a different AI model review the code an agent wrote, before it reports the work as done. Claude Code asks Codex CLI.",
+  "author": {
+    "name": "Tuckn"
+  },
+  "homepage": "https://github.com/tuckn/tkn-codex-plugins/tree/main/plugins/tkn-cross-review",
+  "repository": "https://github.com/tuckn/tkn-codex-plugins",
+  "license": "MIT",
+  "keywords": ["claude-code", "codex", "code-review", "cross-review", "skills"]
+}

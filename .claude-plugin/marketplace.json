@@ -1,6 +1,6 @@
 {
   "name": "tkn-codex-plugins",
-  "description": "Tuckn's plugins shared by Codex and Claude Code",
+  "description": "Tuckn's plugins for Codex and Claude Code",
   "owner": {
     "name": "Tuckn"
   },
@@ -10,6 +10,12 @@
       "source": "./plugins/tkn-codex-context-engineering",
       "description": "Organize Brain Dumps into Markdown planning notes and search Codex and Claude Code chat history.",
       "category": "productivity"
+    },
+    {
+      "name": "tkn-cross-review",
+      "source": "./plugins/tkn-cross-review",
+      "description": "Have a different AI model review the code an agent wrote, before it reports the work as done. Claude Code asks Codex CLI.",
+      "category": "development"
     }
   ]
 }
